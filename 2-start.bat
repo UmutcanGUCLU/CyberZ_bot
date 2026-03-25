@@ -1,5 +1,5 @@
 @echo off
-title Studio Bot v7
+title CyberZ Bot
 cd /d %~dp0
 node bot.js
 pause
