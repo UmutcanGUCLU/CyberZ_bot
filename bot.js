@@ -6,7 +6,7 @@ const cl=new Client({intents:[I.Guilds,I.GuildMembers,I.GuildMessages,I.MessageC
 
 cl.once(EV.ClientReady,async()=>{
 console.log(`\n  Bot online: ${cl.user.tag} | ${cl.guilds.cache.size} servers\n`);
-cl.user.setActivity("/setup | Studio Bot v7");
+cl.user.setActivity("CyberZ Bot");
 try{console.log("  Registering commands...");
 const cmds=[
 new SC().setName("setup").setDescription("Setup server (channels + roles + panels)").setDefaultMemberPermissions(0),
