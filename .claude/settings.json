@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check bot.js)",
+      "Bash(node --check src/logger.js)",
+      "Bash(node --check src/scheduler.js)",
+      "Bash(node --check src/audit.js)",
+      "Bash(node --check src/i18n.js)",
+      "Bash(node --check src/embedsFor.js)",
+      "Bash(node test-coverage.js)",
+      "Bash(ls -la data.json*)",
+      "Bash(node -e ' *)",
+      "Bash(node test-flows.js)",
+      "Bash(ls data.json*)",
+      "Bash(rm -f data.json*)",
+      "Bash(rm -f src/data.json src/data.json.bak src/data.json.tmp data.json*)",
+      "Bash(ls src/*.json)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\GarroshCan\\Desktop\\CyberZ_bot-main"
+    ]
+  }
+}
