@@ -2,28 +2,17 @@
 // Both /setup (first-time build) and /sync-server (idempotent repair) read from here.
 // To add a new role/category/channel later, edit this file and run /sync-server.
 
-const trust = require("./trust");
 const { db } = require("./db");
 
+// Minimal role set: crew roles for staff operations + Verified for member gating.
+// Non-crew ornamental roles (platform tags, trust tiers, job titles) were intentionally removed —
+// if you reintroduce them, also update ROLE_CHOICES in commands.js and any panels that reference them.
 const ROLES = [
   { name: "Developer",       color: 0x3498db },
-  { name: "3D Artist",       color: 0xe91e63 },
-  { name: "Moderator",       color: 0xe74c3c },
   { name: "Lead Developer",  color: 0xf39c12 },
+  { name: "Moderator",       color: 0xe74c3c },
   { name: "QA Tester",       color: 0x2ecc71 },
-  { name: "Sound Designer",  color: 0x9b59b6 },
-  { name: "Game Designer",   color: 0x1abc9c },
-  { name: "Active Player",   color: 0x11806a },
-  { name: "Experienced",     color: 0x1f8b4c },
-  { name: "Veteran",         color: 0xc27c0e },
-  { name: "Legend",          color: 0xa84300 },
-  { name: "PC Player",       color: 0x3498db },
-  { name: "PS Player",       color: 0x2e4057 },
-  { name: "Xbox Player",     color: 0x107c10 },
-  { name: "Mobile Player",   color: 0xe67e22 },
-  { name: "Beta Tester",     color: 0x9b59b6 },
   { name: "Verified",        color: 0x2ecc71 },
-  ...trust.LEVELS.filter(l => l.id > 0).map(l => ({ name: l.roleName, color: l.color })),
 ];
 
 // Categories: key is the internal slot used by channels below.
@@ -51,7 +40,6 @@ const CHANNELS = [
   // Welcome channel is gated — unverified members should only see #verification until they accept rules.
   { name: "welcome",         cat: "welcome",   topic: "New members",          cfgKey: "welCh",     verifiedOnly: true },
   { name: "general-chat",    cat: "community", topic: "General chat"                                                 },
-  { name: "platform-select", cat: "community", topic: "Choose platform",                          panel: "platform" },
   { name: "giveaways",       cat: "community", topic: "Giveaways",            cfgKey: "givCh"                        },
   { name: "polls",           cat: "community", topic: "Polls",                cfgKey: "pollCh"                       },
   { name: "bug-reports",     cat: "feedback",  topic: "Report bugs",          cfgKey: "bugCh",     panel: "bugs"     },
@@ -206,13 +194,17 @@ function buildCfg({ channels, roles }) {
 async function pruneExtras(guild, { ChannelType }) {
   const templateRoleNames = new Set(ROLES.map(r => r.name));
   const templateCatNames = new Set(CATEGORIES.map(c => c.name));
-  templateCatNames.add("Tickets");
+  // Dynamic categories created on-demand — never prune and never prune their children.
+  const dynamicCatNames = new Set(["Tickets", "Bug Tickets"]);
+  dynamicCatNames.forEach(n => templateCatNames.add(n));
 
   // Build lookup of template (channelName, parentId, type) so misplaced duplicates get cleaned too.
   const catIdByName = {};
+  const dynamicCatIds = new Set();
   for (const cat of guild.channels.cache.values()) {
-    if (cat.type === ChannelType.GuildCategory && templateCatNames.has(cat.name)) {
-      catIdByName[cat.name] = cat.id;
+    if (cat.type === ChannelType.GuildCategory) {
+      if (templateCatNames.has(cat.name)) catIdByName[cat.name] = cat.id;
+      if (dynamicCatNames.has(cat.name)) dynamicCatIds.add(cat.id);
     }
   }
   const templateChannelKeys = new Set();
@@ -243,6 +235,8 @@ async function pruneExtras(guild, { ChannelType }) {
     if (ch.type === ChannelType.GuildCategory) continue;
     if (tempVcIds.has(ch.id)) continue;
     if (ticketChIds.has(ch.id)) continue;
+    // Anything inside a dynamic category (Tickets, Bug Tickets) is owned by its system — skip.
+    if (ch.parentId && dynamicCatIds.has(ch.parentId)) continue;
     if (/^ticket-\d+-/.test(ch.name)) continue;
     const key = `${ch.name}|${ch.parentId}|${ch.type}`;
     if (templateChannelKeys.has(key)) continue;

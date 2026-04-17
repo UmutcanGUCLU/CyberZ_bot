@@ -71,14 +71,11 @@ async function escalate(bugId) {
 
   try {
     db.markEscalated(bugId);
-    const lang = i18n.resolveLang(null, null);  // server-default; bug carries no guildId
-    const cfg = bug.chId ? null : null;
-    // Fetch guild from channel
-    if (!bug.chId || !bug.msgId) return;
+    if (!bug.chId) return;
 
-    // Find the guild that owns this channel
+    // Find the guild that owns the bug's private ticket channel
     let guild = null;
-    for (const [gid, g] of client.guilds.cache) {
+    for (const [, g] of client.guilds.cache) {
       if (g.channels.cache.has(bug.chId)) { guild = g; break; }
     }
     if (!guild) return;
@@ -90,7 +87,11 @@ async function escalate(bugId) {
       return;
     }
 
-    const channel = guild.channels.cache.get(bug.chId);
+    // Escalate in admin-panel (all crew see it) — the bug's private channel would hide the ping
+    // from anyone not yet assigned, defeating the purpose of escalation.
+    const channel = guildCfg.adminCh
+      ? guild.channels.cache.get(guildCfg.adminCh)
+      : guild.channels.cache.get(bug.chId);
     if (!channel) return;
 
     const minutes = Math.floor(slaFor(bug.sev) / 60000);

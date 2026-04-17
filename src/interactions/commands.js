@@ -17,6 +17,7 @@ const { isDevOrMod } = require("../permissions");
 const trust = require("../trust");
 const panels = require("../panels");
 const serverTemplate = require("../serverTemplate");
+const { ensureBugMember } = require("./modals");
 
 async function handleCommand(ix, client) {
   const c = ix.commandName;
@@ -129,8 +130,11 @@ async function handleCommand(ix, client) {
     const id = ix.options.getInteger("id"), u = ix.options.getUser("user");
     const b = db.getBug(id);
     if (!b) return ix.reply({ content: t("common.not_found"), ephemeral: true });
+    const prev = b.to;
     db.assignBug(id, u.id, u.displayName);
     const updated = db.getBug(id);
+    if (prev && prev !== u.id) await ensureBugMember(ix.guild, updated, prev, false);
+    await ensureBugMember(ix.guild, updated, u.id, true);
     await ix.reply({ embeds: [E.bugE(updated, db.getHist(id))], components: E.bugBB(updated) });
     try { await u.send(`Bug assigned: **${updated.tag}: ${updated.title}**`); } catch {}
     return audit(ix.guild, `👤 ${updated.tag} → ${u.displayName}`);

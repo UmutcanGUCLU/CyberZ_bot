@@ -3,12 +3,9 @@ const { SlashCommandBuilder: SC } = require("discord.js");
 
 const ROLE_CHOICES = [
   { name: "Developer",      value: "Developer" },
-  { name: "3D Artist",      value: "3D Artist" },
-  { name: "Moderator",      value: "Moderator" },
   { name: "Lead Developer", value: "Lead Developer" },
+  { name: "Moderator",      value: "Moderator" },
   { name: "QA Tester",      value: "QA Tester" },
-  { name: "Sound Designer", value: "Sound Designer" },
-  { name: "Game Designer",  value: "Game Designer" },
 ];
 
 const commands = [

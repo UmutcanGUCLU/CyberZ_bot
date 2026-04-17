@@ -13,7 +13,7 @@ const i18n = require("../i18n");
 const achievements = require("../achievements");
 const { paginate, pageRow } = require("../pagination");
 const pendingBugs = require("../pendingBugs");
-const { createBugFromData } = require("./modals");
+const { createBugFromData, ensureBugMember } = require("./modals");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
 const panels = require("../panels");
@@ -631,9 +631,13 @@ async function handleButton(ix, client) {
   if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
 
   if (act === "cl") {
+    const prev = bug.to;
     db.assignBug(bid, ix.user.id, ix.user.displayName);
     crisisMode.cancel(bid);  // claimed → no longer unassigned
     const u = db.getBug(bid);
+    // Swap ticket access: drop previous assignee (if any), add the new claimer.
+    if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, u, prev, false);
+    await ensureBugMember(ix.guild, u, ix.user.id, true);
     await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_claimed", { tag: u.tag, title: u.title, dev: ix.user.displayName });
@@ -641,9 +645,11 @@ async function handleButton(ix, client) {
     return audit(ix.guild, `🙋 ${u.tag} → ${ix.user.displayName}`);
   }
   if (act === "ua") {
+    const prev = bug.to;
     db.unassignBug(bid, ix.user.displayName);
     crisisMode.schedule(bid);  // unassigned again → restart SLA
     const u = db.getBug(bid);
+    if (prev) await ensureBugMember(ix.guild, u, prev, false);
     return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
   }
   if (act === "rv") {

@@ -7,6 +7,7 @@ const { paginate, pageRow } = require("../pagination");
 const { audit } = require("../audit");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
+const { ensureBugMember } = require("./modals");
 
 async function handleSelect(ix, client) {
   const lang = i18n.langOf(ix);
@@ -71,9 +72,12 @@ async function handleSelect(ix, client) {
     const bid = parseInt(ix.values[0].replace(/^trgclaim_/, ""));
     const bug = db.getBug(bid);
     if (!bug) return ix.update({ content: t("common.not_found"), embeds: [], components: [] });
+    const prev = bug.to;
     db.assignBug(bid, ix.user.id, ix.user.displayName);
     crisisMode.cancel(bid);
     const updated = db.getBug(bid);
+    if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, updated, prev, false);
+    await ensureBugMember(ix.guild, updated, ix.user.id, true);
     // Refresh the public bug card
     if (updated?.chId && updated?.msgId) {
       try {
@@ -97,6 +101,7 @@ async function handleSelect(ix, client) {
     const bug = db.getBug(bid);
     if (!bug) return ix.update({ content: t("common.not_found"), embeds: [], components: [] });
     const uid = ix.values[0];
+    const prev = bug.to;
     if (!uid) {
       db.unassignBug(bid, ix.user.displayName);
       crisisMode.schedule(bid);  // unassigned → restart SLA
@@ -112,6 +117,8 @@ async function handleSelect(ix, client) {
       } catch {}
     }
     const updated = db.getBug(bid);
+    if (prev && prev !== uid) await ensureBugMember(ix.guild, updated, prev, false);
+    if (uid) await ensureBugMember(ix.guild, updated, uid, true);
     // Refresh the public bug card
     if (updated?.chId && updated?.msgId) {
       try {

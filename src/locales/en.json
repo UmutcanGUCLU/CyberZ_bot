@@ -90,6 +90,7 @@
     "modal_resolution_label": "How did you fix it?",
     "modal_comment_label": "Your comment",
     "new_bug": "🐛 **New** — {tag} — <@{uid}> (+30 XP)",
+    "admin_notify": "🐛 New bug channel opened: **{tag}** ({sev}) — by <@{uid}> ▸ {channel}",
     "created": "**{tag}** created! +30 XP",
     "auto_thread_welcome": "🧵 Discussion thread for this bug. You can attach screenshots, log files, or extra details here.",
     "critical_alert": "🚨 **CRITICAL!** <@&{role}> — {tag}",

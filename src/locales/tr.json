@@ -90,6 +90,7 @@
     "modal_resolution_label": "Nasıl çözdün?",
     "modal_comment_label": "Yorumun",
     "new_bug": "🐛 **Yeni** — {tag} — <@{uid}> (+30 XP)",
+    "admin_notify": "🐛 Yeni hata kanalı açıldı: **{tag}** ({sev}) — <@{uid}> tarafından ▸ {channel}",
     "created": "**{tag}** oluşturuldu! +30 XP",
     "auto_thread_welcome": "🧵 Bu hata için tartışma başlatıldı. Ekran görüntüsü, log dosyası veya ek detayları buraya ekleyebilirsin.",
     "critical_alert": "🚨 **KRİTİK!** <@&{role}> — {tag}",

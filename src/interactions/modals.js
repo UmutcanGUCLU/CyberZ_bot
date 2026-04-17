@@ -21,6 +21,10 @@ const BUG_COOLDOWN_S = 30;
 
 // Shared: actually create the bug (posts to channel, audits, pings, achievements).
 // Used by the fresh-report path AND the "create new anyway" duplicate resolution path.
+//
+// Ticket-style privacy: every bug gets its own dedicated channel under "Bug Tickets".
+// Permissions start as { reporter, bot } + admin bypass. When a crew member claims the bug,
+// they're added via ensureBugMember(). Non-claiming crew cannot see other members' bug tickets.
 async function createBugFromData(client, ix, data) {
   const bug = db.mkBug({
     title: data.title, desc: data.desc, steps: data.steps,
@@ -30,53 +34,88 @@ async function createBugFromData(client, ix, data) {
   db.incBugs(ix.user.id);
 
   const cfg = db.getCfg(ix.guildId);
-  // Post bug notifications to admin-panel (staff-only); fall back to bugCh then current channel.
-  const ch = cfg?.adminCh ? ix.guild.channels.cache.get(cfg.adminCh)
-           : cfg?.bugCh   ? ix.guild.channels.cache.get(cfg.bugCh)
-           : ix.channel;
   const chLang = i18n.resolveLang(null, ix.guildId);
   const chE = embedsFor(chLang);
   const chT = (k, p) => i18n.t(k, chLang, p);
-  const msg = await (ch || ix.channel).send({
+
+  // Try to create a private "Bug Tickets" channel for this report. If it fails
+  // (bot missing ManageChannels, Discord outage, etc.) fall back to admin-panel so the bug
+  // isn't stranded — the DB row is already saved and we need somewhere to post the embed.
+  let bugCh = null;
+  try {
+    let bugCat = ix.guild.channels.cache.find(
+      c => c.name === "Bug Tickets" && c.type === CH.GuildCategory
+    );
+    if (!bugCat) {
+      bugCat = await ix.guild.channels.create({
+        name: "Bug Tickets",
+        type: CH.GuildCategory,
+        permissionOverwrites: [
+          { id: ix.guild.id,    deny:  ["ViewChannel"] },
+          { id: client.user.id, allow: ["ViewChannel", "ManageChannels"] },
+        ],
+      });
+    }
+    const sanitized = (ix.user.displayName || ix.user.username).toLowerCase().replace(/[^a-z0-9]/g, "") || "user";
+    bugCh = await ix.guild.channels.create({
+      name: `${bug.tag.toLowerCase()}-${sanitized}`,
+      type: CH.GuildText,
+      parent: bugCat.id,
+      topic: `${bug.tag} — ${data.title.slice(0, 80)}`,
+      permissionOverwrites: [
+        { id: ix.guild.id,    deny:  ["ViewChannel"] },
+        { id: client.user.id, allow: ["ViewChannel", "SendMessages", "ManageChannels", "ManageMessages"] },
+        { id: ix.user.id,     allow: ["ViewChannel", "SendMessages", "ReadMessageHistory", "AttachFiles", "EmbedLinks"] },
+      ],
+    });
+  } catch (e) {
+    // Logged to audit so staff know the ticket flow degraded.
+    await audit(ix.guild, `⚠️ ${bug.tag}: bug channel creation failed — ${e.message}`);
+  }
+
+  const adminCh = cfg?.adminCh ? ix.guild.channels.cache.get(cfg.adminCh) : null;
+  const postCh = bugCh || adminCh || ix.channel;
+  const msg = await postCh.send({
     content: chT("bug.new_bug", { tag: bug.tag, uid: ix.user.id }),
     embeds: [chE.bugE(bug, db.getHist(bug.id))],
     components: chE.bugBB(bug),
   });
-  db.setRef(bug.id, (ch || ix.channel).id, msg.id);
+  db.setRef(bug.id, postCh.id, msg.id);
+
+  // Summary in admin-panel (only when we have a separate dedicated channel to link to).
+  if (adminCh && bugCh && adminCh.id !== bugCh.id) {
+    try {
+      await adminCh.send(chT("bug.admin_notify", {
+        tag: bug.tag, uid: ix.user.id, channel: `<#${bugCh.id}>`, sev: data.severity,
+      }));
+      if (data.severity === "critical" && cfg?.devRole) {
+        await adminCh.send(chT("bug.critical_alert", { role: cfg.devRole, tag: bug.tag }));
+      }
+    } catch {}
+  }
 
   await audit(ix.guild, `🐛 ${bug.tag} — ${data.title} (${data.severity})`);
-  if (data.severity === "critical" && cfg?.devRole) {
-    await (ch || ix.channel).send(chT("bug.critical_alert", { role: cfg.devRole, tag: bug.tag }));
-  }
-
-  // Auto-create PRIVATE discussion thread for critical/high severity bugs.
-  // Private so only the reporter + staff with MANAGE_THREADS can see the discussion.
-  if (data.severity === "critical" || data.severity === "high") {
-    try {
-      const thread = await (ch || ix.channel).threads.create({
-        name: `${bug.tag} · ${data.title.slice(0, 60)}`,
-        autoArchiveDuration: 1440,
-        type: CH.PrivateThread,
-        invitable: false,
-      });
-      db.setTh(bug.id, thread.id);
-      // Explicitly add reporter so they can access the thread even if the parent is staff-only.
-      await thread.members.add(ix.user.id).catch(() => {});
-      await thread.send({
-        content: `<@${ix.user.id}>`,
-        embeds: [new EB()
-          .setColor(0x5865f2)
-          .setDescription(chT("bug.auto_thread_welcome"))],
-      });
-    } catch (e) {
-      // Thread creation is best-effort — silently continue if Discord rejects
-    }
-  }
 
   achievements.trigger(client, ix.user.id, ix.guildId).catch(() => {});
-  // Start crisis-mode escalation timer for critical/high unassigned bugs
   crisisMode.schedule(bug.id);
   return bug;
+}
+
+// Grant/revoke access to a bug's dedicated channel. Used when crew claim or are assigned.
+async function ensureBugMember(guild, bug, userId, allow) {
+  if (!bug?.chId || !userId) return;
+  const ch = guild.channels.cache.get(bug.chId);
+  if (!ch) return;
+  try {
+    if (allow) {
+      await ch.permissionOverwrites.edit(userId, {
+        ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+        AttachFiles: true, EmbedLinks: true,
+      });
+    } else {
+      await ch.permissionOverwrites.delete(userId).catch(() => {});
+    }
+  } catch {}
 }
 
 async function handleModal(ix, client) {
@@ -186,7 +225,16 @@ async function handleModal(ix, client) {
 
     const g = ix.guild;
     let ticketCat = g.channels.cache.find(ch => ch.name === "Tickets" && ch.type === CH.GuildCategory);
-    if (!ticketCat) ticketCat = await g.channels.create({ name: "Tickets", type: CH.GuildCategory });
+    if (!ticketCat) {
+      ticketCat = await g.channels.create({
+        name: "Tickets",
+        type: CH.GuildCategory,
+        permissionOverwrites: [
+          { id: g.id,           deny:  ["ViewChannel"] },
+          { id: client.user.id, allow: ["ViewChannel", "ManageChannels"] },
+        ],
+      });
+    }
 
     const sanitized = ix.user.displayName.toLowerCase().replace(/[^a-z0-9]/g, "");
     const ch = await g.channels.create({
@@ -328,4 +376,4 @@ async function handleModal(ix, client) {
   }
 }
 
-module.exports = { handleModal, createBugFromData };
+module.exports = { handleModal, createBugFromData, ensureBugMember };
