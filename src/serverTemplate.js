@@ -36,7 +36,9 @@ const CATEGORIES = [
 // `panel`  (optional) — panel name used by /setup to post panels; sync-server ignores it.
 // `type`   (optional) — "voice" for voice channels; defaults to text.
 const CHANNELS = [
-  { name: "verification",    cat: "welcome",   topic: "Accept rules",         cfgKey: "verifyCh",  panel: "verify"   },
+  // Verification is the single public-read channel an unverified member can see.
+  // publicReadOnly: @everyone may view + read messages but cannot chat; staff and bot can post.
+  { name: "verification",    cat: "welcome",   topic: "Accept rules",         cfgKey: "verifyCh",  panel: "verify",   publicReadOnly: true },
   // Welcome channel is gated — unverified members should only see #verification until they accept rules.
   { name: "welcome",         cat: "welcome",   topic: "New members",          cfgKey: "welCh",     verifiedOnly: true },
   { name: "general-chat",    cat: "community", topic: "General chat"                                                 },
@@ -154,6 +156,24 @@ async function ensureAll(guild, botUserId, { ChannelType }) {
       for (const staff of ["Developer", "Lead Developer", "Moderator"]) {
         const role = rolesByName[staff];
         if (role) overwrites.push({ id: role.id, allow: ["ViewChannel"] });
+      }
+      try { await ch.permissionOverwrites.set(overwrites); } catch {}
+    }
+
+    // Channel-level publicReadOnly: @everyone can see and read message history, but cannot chat.
+    // Used for #verification so unverified members can view the panel and click the button.
+    if (def.publicReadOnly) {
+      const overwrites = [
+        {
+          id: guild.id,
+          allow: ["ViewChannel", "ReadMessageHistory"],
+          deny:  ["SendMessages", "AddReactions", "CreatePublicThreads", "CreatePrivateThreads", "SendMessagesInThreads"],
+        },
+        { id: botUserId, allow: ["ViewChannel", "SendMessages", "ManageMessages", "ReadMessageHistory", "EmbedLinks"] },
+      ];
+      for (const staff of ["Developer", "Lead Developer", "Moderator"]) {
+        const role = rolesByName[staff];
+        if (role) overwrites.push({ id: role.id, allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"] });
       }
       try { await ch.permissionOverwrites.set(overwrites); } catch {}
     }
