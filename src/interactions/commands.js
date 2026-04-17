@@ -33,8 +33,8 @@ async function handleCommand(ix, client) {
     });
   }
   if (c === "panel-place") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     // Persistent public panel — server default language
     const sLang = i18n.resolveLang(null, ix.guildId);
@@ -198,8 +198,8 @@ async function handleCommand(ix, client) {
     });
   }
   if (c === "trust-set") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const target = ix.options.getUser("user");
     const level = ix.options.getInteger("level");
@@ -210,8 +210,8 @@ async function handleCommand(ix, client) {
     return audit(ix.guild, `🛡️ Trust level set: ${target.displayName} → L${level} (${name}) by ${ix.user.displayName}`);
   }
   if (c === "trust-clear") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const target = ix.options.getUser("user");
     const result = trust.clearOverride(target.id);
@@ -290,8 +290,8 @@ async function handleCommand(ix, client) {
     return ix.reply({ embeds: [embed], components: [new AR().addComponents(select)], ephemeral: true });
   }
   if (c === "sss-ekle") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const question = ix.options.getString("soru");
     const answer = ix.options.getString("cevap");
@@ -300,8 +300,8 @@ async function handleCommand(ix, client) {
     return ix.reply({ content: t("faq.added", { id: faq.id }), ephemeral: true });
   }
   if (c === "sss-sil") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const id = ix.options.getInteger("id");
     const removed = db.rmFaq(id);
@@ -311,8 +311,8 @@ async function handleCommand(ix, client) {
 
   // ===== Known Issues =====
   if (c === "mark-known") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const id = ix.options.getInteger("id");
     const workaround = ix.options.getString("workaround") || null;
@@ -334,8 +334,8 @@ async function handleCommand(ix, client) {
     return audit(ix.guild, `⚠️ ${bug.tag} marked known (${workaround ? "with workaround" : "no workaround"})`);
   }
   if (c === "unmark-known") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const id = ix.options.getInteger("id");
     const bug = db.unmarkKnown(id, ix.user.displayName);
@@ -523,8 +523,8 @@ async function handleCommand(ix, client) {
 
   // ===== Q&A Sessions =====
   if (c === "qa-ac") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const existing = db.activeQa();
     if (existing) return ix.reply({ content: t("qa.already_active", { topic: existing.topic }), ephemeral: true });
@@ -533,8 +533,8 @@ async function handleCommand(ix, client) {
     return ix.reply({ content: t("qa.opened", { topic: qa.topic }) });
   }
   if (c === "qa-kapat") {
-    if (!ix.member.permissions.has(P.Flags.Administrator)) {
-      return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const active = db.activeQa();
     if (!active) return ix.reply({ content: t("qa.no_active"), ephemeral: true });
@@ -711,8 +711,8 @@ async function cmdSetup(ix, client) {
   const lang = i18n.langOf(ix);
   const t = (k, p) => i18n.t(k, lang, p);
   const E = embedsFor(lang);
-  if (!ix.member.permissions.has(P.Flags.Administrator)) {
-    return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+  if (!isDevOrMod(ix.member)) {
+    return ix.reply({ content: t("common.staff_required"), ephemeral: true });
   }
   await ix.deferReply();
   try {
@@ -745,30 +745,54 @@ async function cmdSetup(ix, client) {
 async function cmdSyncServer(ix, client) {
   const lang = i18n.langOf(ix);
   const t = (k, p) => i18n.t(k, lang, p);
-  if (!ix.member.permissions.has(P.Flags.Administrator)) {
-    return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+  if (!isDevOrMod(ix.member)) {
+    return ix.reply({ content: t("common.staff_required"), ephemeral: true });
   }
   await ix.deferReply({ ephemeral: true });
   try {
     const g = ix.guild;
+    const cleanup = ix.options.getBoolean("temizle") || false;
     const result = await serverTemplate.ensureAll(g, client.user.id, { ChannelType: CH });
     db.setCfg(g.id, serverTemplate.buildCfg(result));
 
+    let pruned = { rolesDeleted: [], categoriesDeleted: [], channelsDeleted: [] };
+    if (cleanup) {
+      pruned = await serverTemplate.pruneExtras(g, { ChannelType: CH });
+    }
+
     const fmt = arr => arr.length ? arr.map(x => `• ${x}`).join("\n") : t("sync.none");
     const total = result.rolesCreated.length + result.categoriesCreated.length + result.channelsCreated.length;
+    const totalPruned = pruned.rolesDeleted.length + pruned.categoriesDeleted.length + pruned.channelsDeleted.length;
+
+    const fields = [
+      { name: t("sync.roles"),      value: fmt(result.rolesCreated).slice(0, 1024),      inline: false },
+      { name: t("sync.categories"), value: fmt(result.categoriesCreated).slice(0, 1024), inline: false },
+      { name: t("sync.channels"),   value: fmt(result.channelsCreated).slice(0, 1024),   inline: false },
+    ];
+    if (cleanup) {
+      fields.push(
+        { name: `🗑️ ${t("sync.roles")} (−)`,      value: fmt(pruned.rolesDeleted).slice(0, 1024),      inline: false },
+        { name: `🗑️ ${t("sync.categories")} (−)`, value: fmt(pruned.categoriesDeleted).slice(0, 1024), inline: false },
+        { name: `🗑️ ${t("sync.channels")} (−)`,   value: fmt(pruned.channelsDeleted).slice(0, 1024),   inline: false },
+      );
+    }
+
     const embed = new EB()
       .setTitle(t("sync.title"))
-      .setColor(total ? 0xf39c12 : 0x2ecc71)
+      .setColor((total || totalPruned) ? 0xf39c12 : 0x2ecc71)
       .setDescription(total ? t("sync.added_desc", { count: total }) : t("sync.all_present"))
-      .addFields(
-        { name: t("sync.roles"),      value: fmt(result.rolesCreated).slice(0, 1024),      inline: false },
-        { name: t("sync.categories"), value: fmt(result.categoriesCreated).slice(0, 1024), inline: false },
-        { name: t("sync.channels"),   value: fmt(result.channelsCreated).slice(0, 1024),   inline: false },
-      )
+      .addFields(fields)
       .setTimestamp();
 
     await ix.editReply({ embeds: [embed] });
-    if (total) await audit(g, `🔧 sync-server: +${result.rolesCreated.length}r +${result.categoriesCreated.length}c +${result.channelsCreated.length}ch by ${ix.user.displayName}`);
+    if (total || totalPruned) {
+      await audit(
+        g,
+        `🔧 sync-server: +${result.rolesCreated.length}r +${result.categoriesCreated.length}c +${result.channelsCreated.length}ch` +
+        (cleanup ? ` / −${pruned.rolesDeleted.length}r −${pruned.categoriesDeleted.length}c −${pruned.channelsDeleted.length}ch` : "") +
+        ` by ${ix.user.displayName}`
+      );
+    }
   } catch (e) {
     logger.error("Sync server failed:", e);
     await ix.editReply({ content: t("setup.error", { msg: e.message }) }).catch(() => {});
@@ -778,6 +802,7 @@ async function cmdSyncServer(ix, client) {
 async function cmdReset(ix) {
   const lang = i18n.langOf(ix);
   const t = (k, p) => i18n.t(k, lang, p);
+  // Reset wipes all bot channels — too destructive for crew; admin-only.
   if (!ix.member.permissions.has(P.Flags.Administrator)) {
     return ix.reply({ content: t("common.admin_required"), ephemeral: true });
   }

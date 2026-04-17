@@ -30,7 +30,10 @@ async function createBugFromData(client, ix, data) {
   db.incBugs(ix.user.id);
 
   const cfg = db.getCfg(ix.guildId);
-  const ch = cfg?.bugCh ? ix.guild.channels.cache.get(cfg.bugCh) : ix.channel;
+  // Post bug notifications to admin-panel (staff-only); fall back to bugCh then current channel.
+  const ch = cfg?.adminCh ? ix.guild.channels.cache.get(cfg.adminCh)
+           : cfg?.bugCh   ? ix.guild.channels.cache.get(cfg.bugCh)
+           : ix.channel;
   const chLang = i18n.resolveLang(null, ix.guildId);
   const chE = embedsFor(chLang);
   const chT = (k, p) => i18n.t(k, chLang, p);
@@ -46,15 +49,19 @@ async function createBugFromData(client, ix, data) {
     await (ch || ix.channel).send(chT("bug.critical_alert", { role: cfg.devRole, tag: bug.tag }));
   }
 
-  // Auto-create discussion thread for critical/high severity bugs
-  // (gives reporter a place to attach screenshots, logs, etc.)
-  if ((data.severity === "critical" || data.severity === "high") && msg.startThread) {
+  // Auto-create PRIVATE discussion thread for critical/high severity bugs.
+  // Private so only the reporter + staff with MANAGE_THREADS can see the discussion.
+  if (data.severity === "critical" || data.severity === "high") {
     try {
-      const thread = await msg.startThread({
+      const thread = await (ch || ix.channel).threads.create({
         name: `${bug.tag} · ${data.title.slice(0, 60)}`,
         autoArchiveDuration: 1440,
+        type: CH.PrivateThread,
+        invitable: false,
       });
       db.setTh(bug.id, thread.id);
+      // Explicitly add reporter so they can access the thread even if the parent is staff-only.
+      await thread.members.add(ix.user.id).catch(() => {});
       await thread.send({
         content: `<@${ix.user.id}>`,
         embeds: [new EB()

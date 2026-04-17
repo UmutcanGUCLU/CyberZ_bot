@@ -692,9 +692,14 @@ async function handleButton(ix, client) {
     }
     const th = await ix.channel.threads.create({
       name: `${bug.tag} ${bug.title.slice(0, 50)}`,
-      autoArchiveDuration: 1440
+      autoArchiveDuration: 1440,
+      type: CH.PrivateThread,
+      invitable: false,
     });
     db.setTh(bid, th.id);
+    // Reporter + triggerer get access to the private thread.
+    await th.members.add(bug.by).catch(() => {});
+    if (bug.by !== ix.user.id) await th.members.add(ix.user.id).catch(() => {});
     await th.send({ embeds: [
       new EB().setTitle(`🧵 ${bug.tag}`).setColor(0x5865f2).setDescription(bug.desc.slice(0, 300))
     ]});

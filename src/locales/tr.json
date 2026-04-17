@@ -9,6 +9,7 @@
     "done": "Tamamlandı.",
     "error_generic": "Bir hata oluştu, lütfen tekrar dene.",
     "admin_required": "Bu komut için yönetici yetkisi gerekli.",
+    "staff_required": "Bu komut için crew rolü (Developer / Lead Developer / Moderator / QA Tester) veya yönetici yetkisi gerekli.",
     "role_not_found": "Rol bulunamadı.",
     "invalid": "Geçersiz.",
     "sent": "Gönderildi!",

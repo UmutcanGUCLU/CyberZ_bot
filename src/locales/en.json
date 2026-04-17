@@ -9,6 +9,7 @@
     "done": "Done.",
     "error_generic": "An error occurred, please try again.",
     "admin_required": "Admin permission required.",
+    "staff_required": "Crew role (Developer / Lead Developer / Moderator / QA Tester) or admin permission required.",
     "role_not_found": "Role not found.",
     "invalid": "Invalid.",
     "sent": "Sent!",

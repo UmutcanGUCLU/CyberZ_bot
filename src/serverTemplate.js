@@ -3,6 +3,7 @@
 // To add a new role/category/channel later, edit this file and run /sync-server.
 
 const trust = require("./trust");
+const { db } = require("./db");
 
 const ROLES = [
   { name: "Developer",       color: 0x3498db },
@@ -29,14 +30,16 @@ const ROLES = [
 // `staffOnly: true`     → deny @everyone, allow bot + staff roles.
 // `verifiedOnly: true`  → deny @everyone, allow bot + Verified + staff (view/connect/speak).
 const CATEGORIES = [
+  // Welcome stays open to @everyone — unverified members land here and see #verification.
   { key: "welcome",      name: "Welcome" },
-  { key: "community",    name: "Community" },
-  { key: "feedback",     name: "Game Feedback" },
-  { key: "support",      name: "Support" },
-  { key: "beta",         name: "Beta Program" },
+  // Everything below is gated behind the Verified role.
+  { key: "community",    name: "Community",     verifiedOnly: true },
+  { key: "feedback",     name: "Game Feedback", verifiedOnly: true },
+  { key: "support",      name: "Support",       verifiedOnly: true },
+  { key: "beta",         name: "Beta Program",  verifiedOnly: true },
   { key: "playtogether", name: "Play Together", verifiedOnly: true },
-  { key: "announce",     name: "Announcements" },
-  { key: "mgmt",         name: "Management", staffOnly: true },
+  { key: "announce",     name: "Announcements", verifiedOnly: true },
+  { key: "mgmt",         name: "Management",    staffOnly: true },
 ];
 
 // Channels: `cat` points at a CATEGORIES.key.
@@ -45,7 +48,8 @@ const CATEGORIES = [
 // `type`   (optional) — "voice" for voice channels; defaults to text.
 const CHANNELS = [
   { name: "verification",    cat: "welcome",   topic: "Accept rules",         cfgKey: "verifyCh",  panel: "verify"   },
-  { name: "welcome",         cat: "welcome",   topic: "New members",          cfgKey: "welCh"                        },
+  // Welcome channel is gated — unverified members should only see #verification until they accept rules.
+  { name: "welcome",         cat: "welcome",   topic: "New members",          cfgKey: "welCh",     verifiedOnly: true },
   { name: "general-chat",    cat: "community", topic: "General chat"                                                 },
   { name: "platform-select", cat: "community", topic: "Choose platform",                          panel: "platform" },
   { name: "giveaways",       cat: "community", topic: "Giveaways",            cfgKey: "givCh"                        },
@@ -150,6 +154,21 @@ async function ensureAll(guild, botUserId, { ChannelType }) {
       channelsCreated.push(def.name);
     }
     channelsByName[def.name] = ch;
+
+    // Channel-level verifiedOnly: applied every run so existing channels get corrected too.
+    if (def.verifiedOnly) {
+      const overwrites = [
+        { id: guild.id,  deny: ["ViewChannel"] },
+        { id: botUserId, allow: ["ViewChannel", "ManageChannels"] },
+      ];
+      const verified = rolesByName["Verified"];
+      if (verified) overwrites.push({ id: verified.id, allow: ["ViewChannel"] });
+      for (const staff of ["Developer", "Lead Developer", "Moderator"]) {
+        const role = rolesByName[staff];
+        if (role) overwrites.push({ id: role.id, allow: ["ViewChannel"] });
+      }
+      try { await ch.permissionOverwrites.set(overwrites); } catch {}
+    }
   }
 
   return {
@@ -174,7 +193,73 @@ function buildCfg({ channels, roles }) {
   return cfg;
 }
 
+/**
+ * Destructive cleanup: delete roles/channels/categories that aren't part of the template.
+ * Preserves:
+ *   - @everyone and managed/integration roles (can't/shouldn't delete)
+ *   - Ticket channels (ticket-<id>-<user>) referenced in db.tickets
+ *   - Temp voice channels tracked in db.tempVcs
+ *   - The "Tickets" category (created on-demand by ticket flow)
+ * Empty off-template categories are deleted; non-empty ones are left so nothing orphans mid-run.
+ * Returns { rolesDeleted, categoriesDeleted, channelsDeleted }.
+ */
+async function pruneExtras(guild, { ChannelType }) {
+  const templateRoleNames = new Set(ROLES.map(r => r.name));
+  const templateCatNames = new Set(CATEGORIES.map(c => c.name));
+  templateCatNames.add("Tickets");
+
+  // Build lookup of template (channelName, parentId, type) so misplaced duplicates get cleaned too.
+  const catIdByName = {};
+  for (const cat of guild.channels.cache.values()) {
+    if (cat.type === ChannelType.GuildCategory && templateCatNames.has(cat.name)) {
+      catIdByName[cat.name] = cat.id;
+    }
+  }
+  const templateChannelKeys = new Set();
+  for (const def of CHANNELS) {
+    const catName = CATEGORIES.find(c => c.key === def.cat)?.name;
+    const parentId = catName ? catIdByName[catName] : null;
+    if (!parentId) continue;
+    const type = def.type === "voice" ? ChannelType.GuildVoice : ChannelType.GuildText;
+    templateChannelKeys.add(`${def.name}|${parentId}|${type}`);
+  }
+
+  // Dynamic channels we must NOT delete.
+  const tempVcIds = new Set((db.getTempVcs?.() || []).map(v => v.chId));
+  const ticketChIds = new Set((db.openTkts?.() || []).map(t => t.chId).filter(Boolean));
+
+  const rolesDeleted = [];
+  const categoriesDeleted = [];
+  const channelsDeleted = [];
+
+  for (const role of guild.roles.cache.values()) {
+    if (role.id === guild.id) continue;
+    if (role.managed) continue;
+    if (templateRoleNames.has(role.name)) continue;
+    try { await role.delete("sync-server cleanup"); rolesDeleted.push(role.name); } catch {}
+  }
+
+  for (const ch of guild.channels.cache.values()) {
+    if (ch.type === ChannelType.GuildCategory) continue;
+    if (tempVcIds.has(ch.id)) continue;
+    if (ticketChIds.has(ch.id)) continue;
+    if (/^ticket-\d+-/.test(ch.name)) continue;
+    const key = `${ch.name}|${ch.parentId}|${ch.type}`;
+    if (templateChannelKeys.has(key)) continue;
+    try { await ch.delete("sync-server cleanup"); channelsDeleted.push(ch.name); } catch {}
+  }
+
+  for (const cat of guild.channels.cache.values()) {
+    if (cat.type !== ChannelType.GuildCategory) continue;
+    if (templateCatNames.has(cat.name)) continue;
+    if (cat.children?.cache?.size > 0) continue;
+    try { await cat.delete("sync-server cleanup"); categoriesDeleted.push(cat.name); } catch {}
+  }
+
+  return { rolesDeleted, categoriesDeleted, channelsDeleted };
+}
+
 module.exports = {
   ROLES, CATEGORIES, CHANNELS, ROLE_CFG,
-  ensureAll, buildCfg,
+  ensureAll, buildCfg, pruneExtras,
 };
