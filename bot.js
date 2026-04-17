@@ -17,6 +17,7 @@ const trust = require("./src/trust");
 const raidProtection = require("./src/raidProtection");
 const autoSlowMode = require("./src/autoSlowMode");
 const crisisMode = require("./src/crisisMode");
+const tempVoice = require("./src/tempVoice");
 const { handleCommand } = require("./src/interactions/commands");
 const { handleButton }  = require("./src/interactions/buttons");
 const { handleModal }   = require("./src/interactions/modals");
@@ -28,7 +29,8 @@ const client = new Client({
     I.GuildMembers,
     I.GuildMessages,
     I.MessageContent,
-    I.GuildInvites
+    I.GuildInvites,
+    I.GuildVoiceStates
   ]
 });
 
@@ -81,6 +83,21 @@ client.once(EV.ClientReady, async () => {
   } catch (e) {
     logger.error("Crisis mode restore failed:", e.message);
   }
+
+  // Sweep temp voice channels — delete any empty ones, drop stale tracking entries
+  try {
+    const n = await tempVoice.restoreAll(client);
+    if (n) logger.info(`Cleaned up ${n} stale temp VC(s)`);
+  } catch (e) {
+    logger.error("Temp VC sweep failed:", e.message);
+  }
+});
+
+// ===== VOICE STATE UPDATE: Join-to-Create temp voice rooms =====
+client.on(EV.VoiceStateUpdate, (oldState, newState) => {
+  tempVoice.handleVoiceStateUpdate(oldState, newState).catch(e =>
+    logger.error("voiceStateUpdate failed:", e.message)
+  );
 });
 
 // ===== GUILD MEMBER ADD: welcome + invite attribution =====

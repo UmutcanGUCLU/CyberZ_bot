@@ -26,20 +26,23 @@ const ROLES = [
 ];
 
 // Categories: key is the internal slot used by channels below.
-// `staffOnly: true` → deny @everyone, allow bot + staff roles.
+// `staffOnly: true`     → deny @everyone, allow bot + staff roles.
+// `verifiedOnly: true`  → deny @everyone, allow bot + Verified + staff (view/connect/speak).
 const CATEGORIES = [
-  { key: "welcome",   name: "Welcome" },
-  { key: "community", name: "Community" },
-  { key: "feedback",  name: "Game Feedback" },
-  { key: "support",   name: "Support" },
-  { key: "beta",      name: "Beta Program" },
-  { key: "announce",  name: "Announcements" },
-  { key: "mgmt",      name: "Management", staffOnly: true },
+  { key: "welcome",      name: "Welcome" },
+  { key: "community",    name: "Community" },
+  { key: "feedback",     name: "Game Feedback" },
+  { key: "support",      name: "Support" },
+  { key: "beta",         name: "Beta Program" },
+  { key: "playtogether", name: "Play Together", verifiedOnly: true },
+  { key: "announce",     name: "Announcements" },
+  { key: "mgmt",         name: "Management", staffOnly: true },
 ];
 
 // Channels: `cat` points at a CATEGORIES.key.
 // `cfgKey` (optional) — when set, the channel's id is written to that db cfg field.
-// `panel` (optional) — panel name used by /setup to post panels; sync-server ignores it.
+// `panel`  (optional) — panel name used by /setup to post panels; sync-server ignores it.
+// `type`   (optional) — "voice" for voice channels; defaults to text.
 const CHANNELS = [
   { name: "verification",    cat: "welcome",   topic: "Accept rules",         cfgKey: "verifyCh",  panel: "verify"   },
   { name: "welcome",         cat: "welcome",   topic: "New members",          cfgKey: "welCh"                        },
@@ -51,6 +54,8 @@ const CHANNELS = [
   { name: "suggestions",     cat: "feedback",  topic: "Suggestions",          cfgKey: "sugCh",     panel: "sugg"     },
   { name: "support-tickets", cat: "support",   topic: "Open ticket",          cfgKey: "tktCh",     panel: "ticket"   },
   { name: "beta-apply",      cat: "beta",      topic: "Beta applications",    cfgKey: "betaCh",    panel: "beta"     },
+  // Join-to-Create trigger. Users entering this VC get a new personal room spawned in the same category.
+  { name: "➕ Oda Aç",        cat: "playtogether",                             cfgKey: "joinCreateCh", type: "voice"  },
   { name: "announcements",   cat: "announce",  topic: "Announcements",        cfgKey: "annCh"                        },
   { name: "patch-notes",     cat: "announce",  topic: "Patch notes",          cfgKey: "patchCh"                      },
   { name: "admin-panel",     cat: "mgmt",      topic: "Admin",                cfgKey: "adminCh",   panel: "admin"    },
@@ -110,6 +115,22 @@ async function ensureAll(guild, botUserId, { ChannelType }) {
       }
       try { await cat.permissionOverwrites.set(overwrites); } catch {}
     }
+
+    if (def.verifiedOnly) {
+      // Hidden from @everyone; visible to Verified members and staff.
+      // Bot needs ManageChannels + MoveMembers for Join-to-Create flows.
+      const overwrites = [
+        { id: guild.id,  deny: ["ViewChannel"] },
+        { id: botUserId, allow: ["ViewChannel", "ManageChannels", "Connect", "Speak", "MoveMembers"] },
+      ];
+      const verified = rolesByName["Verified"];
+      if (verified) overwrites.push({ id: verified.id, allow: ["ViewChannel", "Connect", "Speak"] });
+      for (const staff of ["Developer", "Lead Developer", "Moderator"]) {
+        const role = rolesByName[staff];
+        if (role) overwrites.push({ id: role.id, allow: ["ViewChannel", "Connect", "Speak", "ManageChannels"] });
+      }
+      try { await cat.permissionOverwrites.set(overwrites); } catch {}
+    }
   }
 
   const channelsByName = {};
@@ -117,16 +138,14 @@ async function ensureAll(guild, botUserId, { ChannelType }) {
   for (const def of CHANNELS) {
     const parent = catsByKey[def.cat];
     if (!parent) continue;
+    const type = def.type === "voice" ? ChannelType.GuildVoice : ChannelType.GuildText;
     let ch = guild.channels.cache.find(
-      c => c.name === def.name && c.parentId === parent.id
+      c => c.name === def.name && c.parentId === parent.id && c.type === type
     );
     if (!ch) {
-      ch = await guild.channels.create({
-        name: def.name,
-        type: ChannelType.GuildText,
-        parent: parent.id,
-        topic: def.topic,
-      });
+      const opts = { name: def.name, type, parent: parent.id };
+      if (type === ChannelType.GuildText && def.topic) opts.topic = def.topic;
+      ch = await guild.channels.create(opts);
       channelsCreated.push(def.name);
     }
     channelsByName[def.name] = ch;

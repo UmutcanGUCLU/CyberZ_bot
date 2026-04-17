@@ -8,7 +8,7 @@ const DEF = {
   warnings: [], notes: [], welcomes: [], betaKeys: [], usedKeys: [],
   betaApps: [], tickets: [], suggestions: [], announcements: [],
   members: [], invites: [], giveaways: [], polls: [], faqs: [],
-  qaSessions: [],
+  qaSessions: [], tempVcs: [],
   automod: { banned_words: [], max_caps: 70, max_mentions: 5, spam_count: 5, spam_ms: 3000 },
   nBug: 1, nApp: 1, nTkt: 1, nSug: 1, nGiv: 1, nPol: 1, nFaq: 1, nQa: 1, nQaQ: 1
 };
@@ -460,6 +460,20 @@ const db = {
     d.betaKeys = [];
     sv();
     return n;
+  },
+
+  // TEMP VOICE CHANNELS (Join-to-Create)
+  getTempVcs() { return ld().tempVcs; },
+  isTempVc(chId) { return !!ld().tempVcs.find(v => v.chId === chId); },
+  addTempVc(chId, ownerId) {
+    const d = ld();
+    d.tempVcs.push({ chId, ownerId, at: now() });
+    sv();
+  },
+  rmTempVc(chId) {
+    const d = ld();
+    d.tempVcs = d.tempVcs.filter(v => v.chId !== chId);
+    sv();
   },
   applyBeta(uid, n, reason, plat) {
     const d = ld();
