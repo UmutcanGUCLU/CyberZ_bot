@@ -16,6 +16,7 @@ const { paginate, pageRow } = require("../pagination");
 const { isDevOrMod } = require("../permissions");
 const trust = require("../trust");
 const panels = require("../panels");
+const serverTemplate = require("../serverTemplate");
 
 async function handleCommand(ix, client) {
   const c = ix.commandName;
@@ -104,6 +105,7 @@ async function handleCommand(ix, client) {
 
   // ===== Setup & reset =====
   if (c === "setup") return cmdSetup(ix, client);
+  if (c === "sync-server") return cmdSyncServer(ix, client);
   if (c === "reset") return cmdReset(ix);
 
   // ===== Panel placements =====
@@ -647,9 +649,19 @@ async function handleCommand(ix, client) {
 
   // ===== Beta program =====
   if (c === "beta-addkeys") {
-    const keys = ix.options.getString("keys").split(/[,\n;]+/).map(k => k.trim()).filter(k => k.length > 2);
-    const r = db.addKeys(keys);
-    return ix.reply({ content: `**${r.added}** keys added. Pool: **${r.total}**`, ephemeral: true });
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+    }
+    await ix.deferReply({ ephemeral: true });
+    try {
+      const keys = ix.options.getString("keys")
+        .split(/[\s,;]+/).map(k => k.trim()).filter(k => k.length > 2);
+      const r = db.addKeys(keys);
+      return ix.editReply({ content: `**${r.added}** keys added. Pool: **${r.total}**` });
+    } catch (e) {
+      logger.error("beta-addkeys failed:", e);
+      return ix.editReply({ content: t("common.error_generic") }).catch(() => {});
+    }
   }
   if (c === "beta-pool") return ix.reply({ embeds: [E.betaSE(db.betaSt())], ephemeral: true });
   if (c === "beta-pending") {
@@ -679,6 +691,21 @@ async function handleCommand(ix, client) {
   }
 }
 
+// Map panel name → (channel, embeds) builder. Drives the panel-post step in /setup.
+function buildPanelPosters(E) {
+  return {
+    verify:   ch => ch.send({ embeds: [E.verifyP()],                              components: E.verifyB() }),
+    platform: ch => ch.send({ embeds: [E.rrP()],                                  components: E.rrB() }),
+    bugs:     ch => ch.send({ embeds: [E.bugP()],                                 components: E.bugBP() }),
+    sugg:     ch => ch.send({ embeds: [E.sugP()],                                 components: E.sugBP() }),
+    ticket:   ch => ch.send({ embeds: [E.tktP(db.tktSt())],                       components: E.tktBP() }),
+    beta:     ch => ch.send({ embeds: [E.betaP(db.betaSt())],                     components: E.betaBP() }),
+    betamgmt: ch => ch.send({ embeds: [E.betaAP(db.betaSt())],                    components: E.betaABP() }),
+    admin:    ch => ch.send({ embeds: [E.adminP(db.bugStats(), db.tktSt(), db.betaSt())], components: E.adminBP() }),
+    automod:  ch => ch.send({ embeds: [E.amP(db.getAM())],                        components: [E.amB()] }),
+  };
+}
+
 // ===== Setup (creates all channels, roles, panels) =====
 async function cmdSetup(ix, client) {
   const lang = i18n.langOf(ix);
@@ -690,101 +717,60 @@ async function cmdSetup(ix, client) {
   await ix.deferReply();
   try {
     const g = ix.guild;
-    // Store server default language (= admin's language at setup time)
     i18n.setServerLang(g.id, lang);
-    const ensureRole = async (name, color) =>
-      g.roles.cache.find(r => r.name === name) || await g.roles.create({ name, color });
 
-    const roles = {};
-    const ROLE_DEFS = [
-      ["Developer", 0x3498db], ["3D Artist", 0xe91e63], ["Moderator", 0xe74c3c],
-      ["Lead Developer", 0xf39c12], ["QA Tester", 0x2ecc71], ["Sound Designer", 0x9b59b6],
-      ["Game Designer", 0x1abc9c], ["Active Player", 0x11806a], ["Experienced", 0x1f8b4c],
-      ["Veteran", 0xc27c0e], ["Legend", 0xa84300], ["PC Player", 0x3498db],
-      ["PS Player", 0x2e4057], ["Xbox Player", 0x107c10], ["Mobile Player", 0xe67e22],
-      ["Beta Tester", 0x9b59b6], ["Verified", 0x2ecc71],
-      // Trust level roles (src/trust.js)
-      ...trust.LEVELS.filter(l => l.id > 0).map(l => [l.roleName, l.color]),
-    ];
-    for (const [name, color] of ROLE_DEFS) roles[name] = await ensureRole(name, color);
+    const result = await serverTemplate.ensureAll(g, client.user.id, { ChannelType: CH });
+    db.setCfg(g.id, serverTemplate.buildCfg(result));
 
-    const ensureCategory = async (name) =>
-      g.channels.cache.find(ch => ch.name === name && ch.type === CH.GuildCategory) ||
-      await g.channels.create({ name, type: CH.GuildCategory });
-
-    const cats = {
-      welcome:  await ensureCategory("Welcome"),
-      community: await ensureCategory("Community"),
-      feedback: await ensureCategory("Game Feedback"),
-      support:  await ensureCategory("Support"),
-      beta:     await ensureCategory("Beta Program"),
-      announce: await ensureCategory("Announcements"),
-      mgmt:     await ensureCategory("Management"),
-    };
-
-    // Admin-only perms for Management
-    try {
-      await cats.mgmt.permissionOverwrites.set([
-        { id: g.id, deny: ["ViewChannel"] },
-        { id: client.user.id, allow: ["ViewChannel"] },
-        { id: roles["Developer"].id, allow: ["ViewChannel"] },
-        { id: roles["Lead Developer"].id, allow: ["ViewChannel"] },
-        { id: roles["Moderator"].id, allow: ["ViewChannel"] },
-      ]);
-    } catch {}
-
-    const ensureChannel = async (name, cat, topic) =>
-      g.channels.cache.find(ch => ch.name === name && ch.parentId === cat.id) ||
-      await g.channels.create({ name, type: CH.GuildText, parent: cat.id, topic });
-
-    const ch = {
-      verify:   await ensureChannel("verification", cats.welcome, "Accept rules"),
-      welcome:  await ensureChannel("welcome", cats.welcome, "New members"),
-      general:  await ensureChannel("general-chat", cats.community, "General chat"),
-      platform: await ensureChannel("platform-select", cats.community, "Choose platform"),
-      giveaway: await ensureChannel("giveaways", cats.community, "Giveaways"),
-      polls:    await ensureChannel("polls", cats.community, "Polls"),
-      bugs:     await ensureChannel("bug-reports", cats.feedback, "Report bugs"),
-      sugg:     await ensureChannel("suggestions", cats.feedback, "Suggestions"),
-      ticket:   await ensureChannel("support-tickets", cats.support, "Open ticket"),
-      beta:     await ensureChannel("beta-apply", cats.beta, "Beta applications"),
-      ann:      await ensureChannel("announcements", cats.announce, "Announcements"),
-      patch:    await ensureChannel("patch-notes", cats.announce, "Patch notes"),
-      admin:    await ensureChannel("admin-panel", cats.mgmt, "Admin"),
-      automod:  await ensureChannel("automod", cats.mgmt, "AutoMod"),
-      botlog:   await ensureChannel("bot-log", cats.mgmt, "Logs"),
-      betamgmt: await ensureChannel("beta-key-mgmt", cats.mgmt, "Key management"),
-      betarev:  await ensureChannel("beta-review", cats.mgmt, "Review applications"),
-    };
-
-    db.setCfg(g.id, {
-      bugCh: ch.bugs.id, adminCh: ch.admin.id, tktCh: ch.ticket.id,
-      sugCh: ch.sugg.id, betaCh: ch.beta.id, betaAdm: ch.betamgmt.id,
-      betaRev: ch.betarev.id, annCh: ch.ann.id, patchCh: ch.patch.id,
-      logCh: ch.botlog.id, welCh: ch.welcome.id, verifyCh: ch.verify.id,
-      givCh: ch.giveaway.id, pollCh: ch.polls.id, amCh: ch.automod.id,
-      devRole: roles["Developer"].id,
-      leadRole: roles["Lead Developer"].id,
-      testRole: roles["QA Tester"].id,
-    });
-
-    await ch.verify.send({ embeds: [E.verifyP()], components: E.verifyB() });
-    await ch.platform.send({ embeds: [E.rrP()], components: E.rrB() });
-    await ch.bugs.send({ embeds: [E.bugP()], components: E.bugBP() });
-    await ch.sugg.send({ embeds: [E.sugP()], components: E.sugBP() });
-    await ch.ticket.send({ embeds: [E.tktP(db.tktSt())], components: E.tktBP() });
-    await ch.beta.send({ embeds: [E.betaP(db.betaSt())], components: E.betaBP() });
-    await ch.betamgmt.send({ embeds: [E.betaAP(db.betaSt())], components: E.betaABP() });
-    await ch.admin.send({ embeds: [E.adminP(db.bugStats(), db.tktSt(), db.betaSt())], components: E.adminBP() });
-    await ch.automod.send({ embeds: [E.amP(db.getAM())], components: [E.amB()] });
+    // Post panels into freshly-ensured channels.
+    const posters = buildPanelPosters(E);
+    for (const def of serverTemplate.CHANNELS) {
+      if (def.panel && posters[def.panel] && result.channels[def.name]) {
+        await posters[def.panel](result.channels[def.name]);
+      }
+    }
 
     await ix.editReply({ embeds: [
       new EB().setTitle(t("setup.complete_title")).setColor(0x00cc00).setDescription(
-        t("setup.complete_desc", { roleCount: Object.keys(roles).length })
+        t("setup.complete_desc", { roleCount: Object.keys(result.roles).length })
       ).setTimestamp()
     ]});
   } catch (e) {
     logger.error("Setup failed:", e);
+    await ix.editReply({ content: t("setup.error", { msg: e.message }) }).catch(() => {});
+  }
+}
+
+// ===== Sync server (idempotent repair — adds missing roles/categories/channels) =====
+async function cmdSyncServer(ix, client) {
+  const lang = i18n.langOf(ix);
+  const t = (k, p) => i18n.t(k, lang, p);
+  if (!ix.member.permissions.has(P.Flags.Administrator)) {
+    return ix.reply({ content: t("common.admin_required"), ephemeral: true });
+  }
+  await ix.deferReply({ ephemeral: true });
+  try {
+    const g = ix.guild;
+    const result = await serverTemplate.ensureAll(g, client.user.id, { ChannelType: CH });
+    db.setCfg(g.id, serverTemplate.buildCfg(result));
+
+    const fmt = arr => arr.length ? arr.map(x => `• ${x}`).join("\n") : t("sync.none");
+    const total = result.rolesCreated.length + result.categoriesCreated.length + result.channelsCreated.length;
+    const embed = new EB()
+      .setTitle(t("sync.title"))
+      .setColor(total ? 0xf39c12 : 0x2ecc71)
+      .setDescription(total ? t("sync.added_desc", { count: total }) : t("sync.all_present"))
+      .addFields(
+        { name: t("sync.roles"),      value: fmt(result.rolesCreated).slice(0, 1024),      inline: false },
+        { name: t("sync.categories"), value: fmt(result.categoriesCreated).slice(0, 1024), inline: false },
+        { name: t("sync.channels"),   value: fmt(result.channelsCreated).slice(0, 1024),   inline: false },
+      )
+      .setTimestamp();
+
+    await ix.editReply({ embeds: [embed] });
+    if (total) await audit(g, `🔧 sync-server: +${result.rolesCreated.length}r +${result.categoriesCreated.length}c +${result.channelsCreated.length}ch by ${ix.user.displayName}`);
+  } catch (e) {
+    logger.error("Sync server failed:", e);
     await ix.editReply({ content: t("setup.error", { msg: e.message }) }).catch(() => {});
   }
 }

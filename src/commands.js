@@ -14,6 +14,7 @@ const ROLE_CHOICES = [
 const commands = [
   // --- Admin setup / panel placement ---
   new SC().setName("setup").setDescription("Setup server (channels + roles + panels)").setDefaultMemberPermissions(0),
+  new SC().setName("sync-server").setDescription("Add missing channels/roles from template / Eksik kanal-rolleri ekle").setDefaultMemberPermissions(0),
   new SC().setName("reset").setDescription("Delete all bot channels and categories").setDefaultMemberPermissions(0),
   new SC().setName("bug-panel").setDescription("Place bug panel / Bug panelini yerleştir").setDefaultMemberPermissions(0),
   new SC().setName("admin-panel").setDescription("Place admin panel").setDefaultMemberPermissions(0),

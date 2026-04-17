@@ -297,11 +297,27 @@ async function handleModal(ix, client) {
 
   // ===== Beta key upload =====
   if (id === "m_keys") {
-    const keys = ix.fields.getTextInputValue("k")
-      .split(/[\n,;]+/).map(k => k.trim()).filter(k => k.length > 2);
-    const r = db.addKeys(keys);
-    await ix.reply({ content: t("beta.keys_added", { added: r.added, total: r.total }), ephemeral: true });
-    return audit(ix.guild, `🔑 ${r.added} keys added`);
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+    }
+    // Defer immediately — dedup against large pools can exceed Discord's 3s ack window
+    await ix.deferReply({ ephemeral: true });
+    try {
+      const raw = ix.fields.getTextInputValue("k") || "";
+      const keys = raw
+        .split(/[\s,;]+/)
+        .map(k => k.trim())
+        .filter(k => k.length > 2);
+      if (!keys.length) {
+        return ix.editReply({ content: t("beta.keys_added", { added: 0, total: db.betaSt().available }) });
+      }
+      const r = db.addKeys(keys);
+      await ix.editReply({ content: t("beta.keys_added", { added: r.added, total: r.total }) });
+      return audit(ix.guild, `🔑 ${r.added} keys added`);
+    } catch (e) {
+      require("../logger").error("Key upload failed:", e);
+      return ix.editReply({ content: t("common.error_generic") }).catch(() => {});
+    }
   }
 }
 

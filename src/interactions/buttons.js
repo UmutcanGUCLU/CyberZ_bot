@@ -535,6 +535,9 @@ async function handleButton(ix, client) {
   }
   if (id === "beta_stats") return ix.reply({ embeds: [E.betaSE(db.betaSt())], ephemeral: true });
   if (id === "bk_add") {
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+    }
     const m = new MB().setCustomId("m_keys").setTitle("Upload Keys");
     m.addComponents(new AR().addComponents(
       new TI().setCustomId("k").setLabel("One key per line").setStyle(TS.Paragraph).setMaxLength(4000).setRequired(true)

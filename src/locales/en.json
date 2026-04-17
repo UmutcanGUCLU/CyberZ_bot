@@ -39,6 +39,15 @@
     "reset_confirm_desc": "This will **delete all bot channels and categories**. This cannot be undone!\n\n**Will be deleted:** 7 categories + all their channels\n\nCancelled in 30 seconds if not confirmed.",
     "reset_cancelled": "Cancelled."
   },
+  "sync": {
+    "title": "🔧 Server Sync",
+    "added_desc": "**{count}** missing item(s) added.",
+    "all_present": "✅ Everything in place — no missing role/category/channel.",
+    "roles": "Roles added",
+    "categories": "Categories added",
+    "channels": "Channels added",
+    "none": "—"
+  },
   "bug": {
     "panel_title": "━━━━━━━━ Bug Reports ━━━━━━━━",
     "panel_author": "BUG TRACKER",

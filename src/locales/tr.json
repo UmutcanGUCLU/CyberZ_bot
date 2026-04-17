@@ -39,6 +39,15 @@
     "reset_confirm_desc": "Bu işlem **tüm bot kanallarını ve kategorilerini silecek**. Bu geri alınamaz!\n\n**Silinecek:** 7 kategori + içindeki tüm kanallar\n\n30 saniye içinde onaylamazsan iptal edilir.",
     "reset_cancelled": "İptal edildi."
   },
+  "sync": {
+    "title": "🔧 Sunucu Senkronizasyonu",
+    "added_desc": "**{count}** eksik öğe eklendi.",
+    "all_present": "✅ Her şey yerinde — eksik rol/kategori/kanal yok.",
+    "roles": "Eklenen Roller",
+    "categories": "Eklenen Kategoriler",
+    "channels": "Eklenen Kanallar",
+    "none": "—"
+  },
   "bug": {
     "panel_title": "━━━━━━━━ Hata Raporları ━━━━━━━━",
     "panel_author": "HATA TAKİP SİSTEMİ",
