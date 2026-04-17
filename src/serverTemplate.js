@@ -54,8 +54,9 @@ const CHANNELS = [
   { name: "suggestions",     cat: "feedback",  topic: "Suggestions",          cfgKey: "sugCh",     panel: "sugg"     },
   { name: "support-tickets", cat: "support",   topic: "Open ticket",          cfgKey: "tktCh",     panel: "ticket"   },
   { name: "beta-apply",      cat: "beta",      topic: "Beta applications",    cfgKey: "betaCh",    panel: "beta"     },
+  { name: "looking-for-group", cat: "playtogether", topic: "Find teammates & coordinate play sessions"               },
   // Join-to-Create trigger. Users entering this VC get a new personal room spawned in the same category.
-  { name: "➕ Oda Aç",        cat: "playtogether",                             cfgKey: "joinCreateCh", type: "voice"  },
+  { name: "➕ Create Room",   cat: "playtogether",                             cfgKey: "joinCreateCh", type: "voice"  },
   { name: "announcements",   cat: "announce",  topic: "Announcements",        cfgKey: "annCh"                        },
   { name: "patch-notes",     cat: "announce",  topic: "Patch notes",          cfgKey: "patchCh"                      },
   { name: "admin-panel",     cat: "mgmt",      topic: "Admin",                cfgKey: "adminCh",   panel: "admin"    },
