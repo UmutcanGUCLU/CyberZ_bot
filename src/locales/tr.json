@@ -102,6 +102,7 @@
     "close_report_closed_by": "Kapatan",
     "close_report_original": "Orijinal Açıklama",
     "ticket_archiving": "🔒 **{tag}** kapatıldı. Bu kanal birazdan arşivlenecek…",
+    "staff_controls_header": "🛠️ **Crew Kontrolleri — {tag}**\nAşağıdaki butonlar yalnızca crew (Developer / Lead / Moderator / QA) tarafından kullanılabilir.",
     "severity": {
       "critical": "Kritik",
       "high": "Yüksek",

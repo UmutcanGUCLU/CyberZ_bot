@@ -17,7 +17,7 @@ const { isDevOrMod } = require("../permissions");
 const trust = require("../trust");
 const panels = require("../panels");
 const serverTemplate = require("../serverTemplate");
-const { ensureBugMember } = require("./modals");
+const { ensureBugMember, refreshBugTicket } = require("./modals");
 
 async function handleCommand(ix, client) {
   const c = ix.commandName;
@@ -146,8 +146,8 @@ async function handleCommand(ix, client) {
   if (c === "bug") {
     const b = db.getBug(ix.options.getInteger("id"));
     if (!b) return ix.reply({ content: t("common.not_found"), ephemeral: true });
-    // Only staff get the action button row — reporters viewing their own bug see comment only.
-    return ix.reply({ embeds: [E.bugE(b, db.getHist(b.id), db.getCmts(b.id))], components: E.bugBB(b, lang, isDevOrMod(ix.member)) });
+    // Full button set — staff-only actions are permission-gated at click time, not hidden.
+    return ix.reply({ embeds: [E.bugE(b, db.getHist(b.id), db.getCmts(b.id))], components: E.bugBB(b) });
   }
   if (c === "bug-assign") {
     const id = ix.options.getInteger("id"), u = ix.options.getUser("user");
@@ -346,18 +346,7 @@ async function handleCommand(ix, client) {
     const bug = db.markKnown(id, workaround, ix.user.displayName);
     if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
     await ix.reply({ content: t("known_issues.marked", { tag: bug.tag }), ephemeral: true });
-    // Refresh the bug's public card if we know where it is
-    if (bug.chId && bug.msgId) {
-      try {
-        const ch = ix.guild.channels.cache.get(bug.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(bug.msgId);
-          const chLang = i18n.resolveLang(null, ix.guildId);
-          const chE = embedsFor(chLang);
-          await msg.edit({ embeds: [chE.bugE(bug, db.getHist(bug.id), db.getCmts(bug.id))], components: chE.bugBB(bug, chLang, false) });
-        }
-      } catch {}
-    }
+    refreshBugTicket(ix.guild, bug, i18n.resolveLang(null, ix.guildId));
     return audit(ix.guild, `⚠️ ${bug.tag} marked known (${workaround ? "with workaround" : "no workaround"})`);
   }
   if (c === "unmark-known") {

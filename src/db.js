@@ -180,7 +180,7 @@ const db = {
       title: f.title, desc: f.desc, steps: f.steps || "",
       sev: f.sev, status: "open", plat: f.plat || "all", cat: f.cat || "gameplay",
       by: f.uid, byN: f.name, to: null, toN: null,
-      chId: null, msgId: null, thId: null,
+      chId: null, msgId: null, thId: null, staffMsgId: null,
       at: now(), upd: now(), resAt: null, resNote: null, votes: [],
       known: false, workaround: null,
       escalated: false
@@ -229,6 +229,10 @@ const db = {
   setRef(id, ch, msg) {
     const d = ld(), b = d.bugs.find(x => x.id === id);
     if (b) { b.chId = ch; b.msgId = msg; sv(); }
+  },
+  setStaffMsg(id, msgId) {
+    const d = ld(), b = d.bugs.find(x => x.id === id);
+    if (b) { b.staffMsgId = msgId; sv(); }
   },
   setTh(id, th) {
     const d = ld(), b = d.bugs.find(x => x.id === id);

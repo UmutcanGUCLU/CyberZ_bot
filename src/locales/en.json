@@ -102,6 +102,7 @@
     "close_report_closed_by": "Closed by",
     "close_report_original": "Original description",
     "ticket_archiving": "🔒 **{tag}** closed. This channel will be archived shortly…",
+    "staff_controls_header": "🛠️ **Crew Controls — {tag}**\nThese actions are restricted to crew members (Developer / Lead / Moderator / QA).",
     "severity": {
       "critical": "Critical",
       "high": "High",

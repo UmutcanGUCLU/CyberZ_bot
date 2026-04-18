@@ -533,6 +533,43 @@ function bugE(b, history = [], comments = [], lang = "tr") {
   e.setFooter({ text: `${b.tag} | ${b.at}` });
   return e;
 }
+// Staff-only action row for bug-tickets. Reporter physically sees the buttons
+// (Discord can't hide components per-viewer) but handlers reject non-crew clicks.
+function bugBB_staffOnly(b, lang = "tr") {
+  const t = tt(lang);
+  const s = b.status, rows = [];
+  const r = new R();
+  if (s === "open") {
+    r.addComponents(
+      new B().setCustomId(`cl_${b.id}`).setLabel(t("bug.btn_claim")).setStyle(S.Primary).setEmoji("🙋"),
+      new B().setCustomId(`rv_${b.id}`).setLabel(t("bug.btn_resolve")).setStyle(S.Success).setEmoji("✅"),
+      new B().setCustomId(`cx_${b.id}`).setLabel(t("bug.btn_close")).setStyle(S.Secondary).setEmoji("🔒"),
+    );
+  } else if (s === "in-progress") {
+    r.addComponents(
+      new B().setCustomId(`rv_${b.id}`).setLabel(t("bug.btn_resolve")).setStyle(S.Success).setEmoji("✅"),
+      new B().setCustomId(`cx_${b.id}`).setLabel(t("bug.btn_close")).setStyle(S.Secondary).setEmoji("🔒"),
+      new B().setCustomId(`ua_${b.id}`).setLabel(t("bug.btn_unassign")).setStyle(S.Secondary).setEmoji("↩️"),
+    );
+  } else {
+    r.addComponents(
+      new B().setCustomId(`ro_${b.id}`).setLabel(t("bug.btn_reopen")).setStyle(S.Danger).setEmoji("🔓"),
+    );
+  }
+  rows.push(r);
+  if (s !== "closed") {
+    const knownBtn = b.known
+      ? new B().setCustomId(`umk_${b.id}`).setLabel(t("bug.btn_unmark_known")).setStyle(S.Secondary).setEmoji("✅")
+      : new B().setCustomId(`mk_${b.id}`).setLabel(t("bug.btn_mark_known")).setStyle(S.Secondary).setEmoji("⚠️");
+    rows.push(new R().addComponents(
+      knownBtn,
+      new B().setCustomId(`asg_${b.id}`).setLabel(t("bug.btn_assign")).setStyle(S.Secondary).setEmoji("👤"),
+      new B().setCustomId(`sev_${b.id}`).setLabel(t("bug.btn_severity")).setStyle(S.Secondary).setEmoji("🎚️"),
+    ));
+  }
+  return rows;
+}
+
 // staffView=false renders only the comment button — used in the bug-tickets channel where
 // the reporter (and anyone else in that channel who isn't staff) should not see action buttons.
 function bugBB(b, lang = "tr", staffView = true) {
@@ -698,6 +735,6 @@ module.exports = {
   givE, givB,
   polE, polB,
   profE, lbE,
-  bugE, bugBB,
+  bugE, bugBB, bugBB_staffOnly,
   listE, dashE, statE, filtS, annE,
 };

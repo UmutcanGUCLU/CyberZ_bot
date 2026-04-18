@@ -13,7 +13,7 @@ const i18n = require("../i18n");
 const achievements = require("../achievements");
 const { paginate, pageRow } = require("../pagination");
 const pendingBugs = require("../pendingBugs");
-const { createBugFromData, ensureBugMember } = require("./modals");
+const { createBugFromData, ensureBugMember, refreshBugMain, refreshBugTicket } = require("./modals");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
 const panels = require("../panels");
@@ -33,6 +33,10 @@ async function dmBugStatus(client, uid, guildId, key, params) {
 
 // Whitelist for bug action prefixes (prevents ID collision with unknown buttons)
 const BUG_ACTIONS = ["cl", "ua", "rv", "cx", "ro", "vu", "cm", "th", "hi"];
+// Only comment is open to everyone; every other bug action requires crew. The denial is always
+// shown in English (per product decision) and ephemeral so only the clicker sees it.
+const PUBLIC_BUG_ACTS = new Set(["cm"]);
+const NO_PERMISSION_EN = "❌ You don't have permission to use this action.";
 
 async function handleButton(ix, client) {
   const id = ix.customId;
@@ -43,7 +47,7 @@ async function handleButton(ix, client) {
   // ===== Dev actions on bug card (permission-gated) =====
   if (id.startsWith("mk_") || id.startsWith("umk_") || id.startsWith("asg_") || id.startsWith("sev_")) {
     if (!isDevOrMod(ix.member)) {
-      return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+      return ix.reply({ content: NO_PERMISSION_EN, ephemeral: true });
     }
 
     // Mark as known — show modal for workaround
@@ -113,20 +117,11 @@ async function handleButton(ix, client) {
   if (id.startsWith("asgclr_")) {
     if (!isDevOrMod(ix.member)) return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
     const bid = parseInt(id.slice(7));
+    const prev = db.getBug(bid)?.to;
     db.unassignBug(bid, ix.user.displayName);
     const updated = db.getBug(bid);
-    // Refresh the public bug card
-    if (updated?.chId && updated?.msgId) {
-      try {
-        const ch = ix.guild.channels.cache.get(updated.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(updated.msgId);
-          const chLang = i18n.resolveLang(null, ix.guildId);
-          const chE = embedsFor(chLang);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
-        }
-      } catch {}
-    }
+    if (prev) await ensureBugMember(ix.guild, updated, prev, false);
+    refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
     return ix.update({ content: t("bug.assign_cleared"), embeds: [], components: [] });
   }
 
@@ -137,19 +132,8 @@ async function handleButton(ix, client) {
     if (!bug) return ix.update({ content: t("common.not_found"), embeds: [], components: [] });
     db.vote(bid, ix.user.id);
     pendingBugs.clear(ix.user.id);
-    // Refresh the voted-on bug's public card if it's tracked
-    if (bug.chId && bug.msgId) {
-      try {
-        const chLang = i18n.resolveLang(null, ix.guildId);
-        const chE = embedsFor(chLang);
-        const ch = ix.guild.channels.cache.get(bug.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(bug.msgId);
-          const updated = db.getBug(bid);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
-        }
-      } catch {}
-    }
+    const updated = db.getBug(bid);
+    refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
     return ix.update({ content: t("duplicate.voted", { tag: bug.tag }), embeds: [], components: [] });
   }
   if (id === "dup_new") {
@@ -630,16 +614,10 @@ async function handleButton(ix, client) {
   const bug = db.getBug(bid);
   if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
 
-  // Staff-only actions need crew role; the buttons are hidden from reporter view but guard anyway.
-  const STAFF_ACTS = new Set(["cl", "ua", "rv", "cx", "ro"]);
-  if (STAFF_ACTS.has(act) && !isDevOrMod(ix.member)) {
-    return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+  // Non-comment bug actions require crew; everyone can comment.
+  if (!PUBLIC_BUG_ACTS.has(act) && !isDevOrMod(ix.member)) {
+    return ix.reply({ content: NO_PERMISSION_EN, ephemeral: true });
   }
-
-  // If the button was clicked on the bug's canonical ticket-channel message, preserve the
-  // reporter view (comment-only) on refresh. Anywhere else (ephemeral /bug reply etc.) gets full.
-  const isTicketMsg = !!(bug.chId && bug.msgId && ix.message?.id === bug.msgId);
-  const sv = !isTicketMsg;
 
   if (act === "cl") {
     const prev = bug.to;
@@ -649,7 +627,7 @@ async function handleButton(ix, client) {
     // Swap ticket access: drop previous assignee (if any), add the new claimer.
     if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, u, prev, false);
     await ensureBugMember(ix.guild, u, ix.user.id, true);
-    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+    await ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u) });
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_claimed", { tag: u.tag, title: u.title, dev: ix.user.displayName });
     }
@@ -661,7 +639,7 @@ async function handleButton(ix, client) {
     crisisMode.schedule(bid);  // unassigned again → restart SLA
     const u = db.getBug(bid);
     if (prev) await ensureBugMember(ix.guild, u, prev, false);
-    return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+    return ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u) });
   }
   if (act === "rv") {
     const m = new MB().setCustomId(`mr_${bid}`).setTitle(`${bug.tag} Resolution`);
@@ -707,20 +685,21 @@ async function handleButton(ix, client) {
     const parentCat = ticketCh?.parentId ? ix.guild.channels.cache.get(ticketCh.parentId) : null;
     const isRealTicket = parentCat?.name === "Bug Tickets";
     if (!ticketCh || !isRealTicket) {
-      return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+      return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
     }
+    // If the click was inside the ticket channel, show an archiving notice briefly — Discord
+    // requires an ack, and the message will disappear with the channel anyway.
+    const clickedInsideTicket = ix.message?.id === u.msgId;
     try {
-      if (isTicketMsg) {
-        // Clicking from inside the ticket — Discord requires an ack before the message disappears.
+      if (clickedInsideTicket) {
         await ix.update({
           embeds: [new EB().setColor(0xe74c3c).setDescription(t("bug.ticket_archiving", { tag: u.tag }))],
           components: [],
         });
       } else {
-        await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+        await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
       }
     } catch {}
-    // Small delay so the reporter (if watching) sees the "archiving" notice before the channel goes.
     setTimeout(() => { ticketCh.delete("Bug closed — ticket archived").catch(() => {}); }, 3000);
     return;
   }
@@ -728,7 +707,7 @@ async function handleButton(ix, client) {
     db.reopenBug(bid, ix.user.displayName);
     crisisMode.schedule(bid);  // reopened → SLA clock starts again
     const u = db.getBug(bid);
-    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+    await ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u) });
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_reopened", { tag: u.tag, title: u.title, by: ix.user.displayName });
     }
@@ -737,7 +716,7 @@ async function handleButton(ix, client) {
   if (act === "vu") {
     db.vote(bid, ix.user.id);
     const u = db.getBug(bid);
-    return ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u, lang, sv) });
+    return ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u) });
   }
   if (act === "cm") {
     const m = new MB().setCustomId(`mc_${bid}`).setTitle(`${bug.tag} Comment`);

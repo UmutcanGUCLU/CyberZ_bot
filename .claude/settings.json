@@ -20,7 +20,13 @@
       "Bash(node -c src/interactions/modals.js)",
       "Bash(node -c src/interactions/commands.js)",
       "Bash(node -c src/embeds.js)",
-      "Bash(node -c src/embedsFor.js)"
+      "Bash(node -c src/embedsFor.js)",
+      "Bash(node -c src/interactions/selects.js)",
+      "Bash(node -c src/db.js)",
+      "Bash(node -c src/serverTemplate.js)",
+      "Bash(node -e \"require\\('./src/interactions/modals'\\); require\\('./src/interactions/buttons'\\); require\\('./src/interactions/commands'\\); require\\('./src/interactions/selects'\\); require\\('./src/embeds'\\); console.log\\('modules load OK'\\);\")",
+      "Bash(node -e \"const t=require\\('./src/locales/tr.json'\\), e=require\\('./src/locales/en.json'\\); console.log\\('staff_controls_header tr:', !!t.bug.staff_controls_header, 'en:', !!e.bug.staff_controls_header\\);\")",
+      "Bash(node -e \"require\\('./src/interactions/modals'\\); require\\('./src/interactions/buttons'\\); require\\('./src/interactions/commands'\\); require\\('./src/interactions/selects'\\); console.log\\('load OK'\\);\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\GarroshCan\\Desktop\\CyberZ_bot-main"

@@ -7,7 +7,7 @@ const { paginate, pageRow } = require("../pagination");
 const { audit } = require("../audit");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
-const { ensureBugMember } = require("./modals");
+const { ensureBugMember, refreshBugTicket } = require("./modals");
 
 async function handleSelect(ix, client) {
   const lang = i18n.langOf(ix);
@@ -78,18 +78,7 @@ async function handleSelect(ix, client) {
     const updated = db.getBug(bid);
     if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, updated, prev, false);
     await ensureBugMember(ix.guild, updated, ix.user.id, true);
-    // Refresh the public bug card
-    if (updated?.chId && updated?.msgId) {
-      try {
-        const chLang = i18n.resolveLang(null, ix.guildId);
-        const chE = embedsFor(chLang);
-        const ch = ix.guild.channels.cache.get(updated.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
-        }
-      } catch {}
-    }
+    refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
     await audit(ix.guild, `🙋 ${updated.tag} claimed by ${ix.user.displayName} via triage`);
     return ix.update({ content: t("triage.quick_claimed", { tag: updated.tag }), embeds: [], components: [] });
   }
@@ -119,18 +108,7 @@ async function handleSelect(ix, client) {
     const updated = db.getBug(bid);
     if (prev && prev !== uid) await ensureBugMember(ix.guild, updated, prev, false);
     if (uid) await ensureBugMember(ix.guild, updated, uid, true);
-    // Refresh the public bug card
-    if (updated?.chId && updated?.msgId) {
-      try {
-        const chLang = i18n.resolveLang(null, ix.guildId);
-        const chE = embedsFor(chLang);
-        const ch = ix.guild.channels.cache.get(updated.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
-        }
-      } catch {}
-    }
+    refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
     const doneMsg = uid
       ? t("bug.assigned", { tag: updated.tag, uid })
       : t("bug.assign_cleared");
@@ -145,17 +123,7 @@ async function handleSelect(ix, client) {
     const newSev = ix.values[0];
     const updated = db.setSeverity(bid, newSev, ix.user.displayName);
     if (!updated) return ix.update({ content: t("common.not_found"), embeds: [], components: [] });
-    if (updated?.chId && updated?.msgId) {
-      try {
-        const chLang = i18n.resolveLang(null, ix.guildId);
-        const chE = embedsFor(chLang);
-        const ch = ix.guild.channels.cache.get(updated.chId);
-        if (ch) {
-          const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
-        }
-      } catch {}
-    }
+    refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
     const sevLabel = t(`bug.severity.${newSev}`);
     await audit(ix.guild, `🎚️ ${updated.tag} severity → ${newSev} by ${ix.user.displayName}`);
     return ix.update({ content: t("bug.severity_changed", { tag: updated.tag, sev: sevLabel }), embeds: [], components: [] });

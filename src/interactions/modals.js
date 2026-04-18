@@ -75,13 +75,13 @@ async function createBugFromData(client, ix, data) {
 
   const adminCh = cfg?.adminCh ? ix.guild.channels.cache.get(cfg.adminCh) : null;
   const postCh = bugCh || adminCh || ix.channel;
-  // If the post lands in the private bug ticket, only the comment button is visible to participants.
-  // In admin-panel (staff-only channel) keep the full action buttons.
-  const staffView = postCh !== bugCh;
+  // Full button set on every post. Non-crew clicks on staff actions are rejected at the
+  // handler level with an ephemeral English "no permission" response — Discord can't hide
+  // components per-viewer, so runtime gating is the cleanest we can do.
   const msg = await postCh.send({
     content: chT("bug.new_bug", { tag: bug.tag, uid: ix.user.id }),
     embeds: [chE.bugE(bug, db.getHist(bug.id))],
-    components: chE.bugBB(bug, chLang, staffView),
+    components: chE.bugBB(bug),
   });
   db.setRef(bug.id, postCh.id, msg.id);
 
@@ -103,6 +103,26 @@ async function createBugFromData(client, ix, data) {
   crisisMode.schedule(bug.id);
   return bug;
 }
+
+// Refresh the bug's ticket-channel message in place. Best-effort — errors swallowed.
+async function refreshBugTicket(guild, bug, lang) {
+  if (!bug?.chId || !bug?.msgId) return;
+  const ch = guild.channels.cache.get(bug.chId);
+  if (!ch) return;
+  const parent = ch.parentId ? guild.channels.cache.get(ch.parentId) : null;
+  if (parent?.name !== "Bug Tickets") return;
+  const E = require("../embedsFor")(lang);
+  const { db: d } = require("../db");
+  try {
+    const msg = await ch.messages.fetch(bug.msgId);
+    await msg.edit({
+      embeds: [E.bugE(bug, d.getHist(bug.id), d.getCmts(bug.id))],
+      components: E.bugBB(bug),
+    });
+  } catch {}
+}
+
+const refreshBugMain = refreshBugTicket;
 
 // Grant/revoke access to a bug's dedicated channel. Used when crew claim or are assigned.
 // Only touches channels whose parent category is "Bug Tickets" — legacy bugs whose chId points
@@ -190,9 +210,7 @@ async function handleModal(ix, client) {
     crisisMode.cancel(bid);
     if (b.to) db.incRes(b.to);
     const updated = db.getBug(bid);
-    const svR = !(updated.chId && updated.msgId && ix.message?.id === updated.msgId);
-
-    await ix.update({ embeds: [E.bugE(updated, db.getHist(bid))], components: E.bugBB(updated, lang, svR) });
+    await ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
     await audit(ix.guild, `✅ ${updated.tag}: ${note}`);
 
     if (b.by !== ix.user.id) {
@@ -212,8 +230,7 @@ async function handleModal(ix, client) {
     const workaround = ix.fields.getTextInputValue("w") || null;
     const bug = db.markKnown(bid, workaround, ix.user.displayName);
     if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
-    const svK = !(bug.chId && bug.msgId && ix.message?.id === bug.msgId);
-    await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug, lang, svK) });
+    await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug) });
     return audit(ix.guild, `⚠️ ${bug.tag} marked known by ${ix.user.displayName}`);
   }
 
@@ -243,8 +260,7 @@ async function handleModal(ix, client) {
     const text = ix.fields.getTextInputValue("t");
     db.addCmt(bid, ix.user.id, ix.user.displayName, text);
     const updated = db.getBug(bid);
-    const svC = !(updated.chId && updated.msgId && ix.message?.id === updated.msgId);
-    return ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated, lang, svC) });
+    return ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
   }
 
   // ===== Ticket submission =====
@@ -406,4 +422,4 @@ async function handleModal(ix, client) {
   }
 }
 
-module.exports = { handleModal, createBugFromData, ensureBugMember };
+module.exports = { handleModal, createBugFromData, ensureBugMember, refreshBugMain, refreshBugTicket };
