@@ -18,6 +18,7 @@ function embedsFor(lang) {
   wrapped.listE = (bugs, title, pageInfo = null) => base.listE(bugs, title, lang, pageInfo);
   wrapped.lbE = (members, pageInfo = null) => base.lbE(members, lang, pageInfo);
   wrapped.bugE = (bug, history = [], comments = []) => base.bugE(bug, history, comments, lang);
+  wrapped.verifyP = (customRules = null) => base.verifyP(lang, customRules);
   return wrapped;
 }
 

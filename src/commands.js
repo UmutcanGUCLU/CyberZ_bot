@@ -20,6 +20,7 @@ const commands = [
   new SC().setName("beta-panel").setDescription("Place beta panel"),
   new SC().setName("beta-admin").setDescription("Place beta key mgmt panel"),
   new SC().setName("verify-panel").setDescription("Place verification panel"),
+  new SC().setName("verify-rules").setDescription("Edit verification rules / Doğrulama kurallarını düzenle"),
   new SC().setName("reaction-roles").setDescription("Place platform select panel"),
   new SC().setName("automod-panel").setDescription("Place automod panel"),
 

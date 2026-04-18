@@ -14,7 +14,13 @@
       "Bash(ls data.json*)",
       "Bash(rm -f data.json*)",
       "Bash(rm -f src/data.json src/data.json.bak src/data.json.tmp data.json*)",
-      "Bash(ls src/*.json)"
+      "Bash(ls src/*.json)",
+      "Bash(node -e \"const t=require\\('./src/locales/tr.json'\\); const e=require\\('./src/locales/en.json'\\); ['rules_modal_title','rules_modal_label','rules_saved'].forEach\\(k=>console.log\\('verify.'+k, !!t.verify[k], !!e.verify[k]\\)\\); ['close_report_title','close_report_desc','close_report_severity','close_report_closed_by','close_report_original','ticket_archiving'].forEach\\(k=>console.log\\('bug.'+k, !!t.bug[k], !!e.bug[k]\\)\\);\")",
+      "Bash(node -c src/interactions/buttons.js)",
+      "Bash(node -c src/interactions/modals.js)",
+      "Bash(node -c src/interactions/commands.js)",
+      "Bash(node -c src/embeds.js)",
+      "Bash(node -c src/embedsFor.js)"
     ],
     "additionalDirectories": [
       "C:\\Users\\GarroshCan\\Desktop\\CyberZ_bot-main"

@@ -116,7 +116,29 @@ async function handleCommand(ix, client) {
   if (c === "sugg-panel")     { await ix.channel.send({ embeds: [E.sugP()], components: E.sugBP() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
   if (c === "beta-panel")     { await ix.channel.send({ embeds: [E.betaP(db.betaSt())], components: E.betaBP() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
   if (c === "beta-admin")     { await ix.channel.send({ embeds: [E.betaAP(db.betaSt())], components: E.betaABP() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
-  if (c === "verify-panel")   { await ix.channel.send({ embeds: [E.verifyP()], components: E.verifyB() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
+  if (c === "verify-panel") {
+    const cfg = db.getCfg(ix.guildId);
+    const sent = await ix.channel.send({ embeds: [E.verifyP(lang, cfg?.verifyRules)], components: E.verifyB(lang) });
+    db.setCfg(ix.guildId, { verifyMsgId: sent.id, verifyPanelCh: ix.channel.id });
+    return ix.reply({ content: t("common.done"), ephemeral: true });
+  }
+  if (c === "verify-rules") {
+    if (!isDevOrMod(ix.member)) return ix.reply({ content: t("common.staff_required"), ephemeral: true });
+    const cfg = db.getCfg(ix.guildId);
+    const current = cfg?.verifyRules || i18n.t("verify.panel_desc", lang);
+    const modal = new (require("discord.js").ModalBuilder)()
+      .setCustomId("m_verify_rules")
+      .setTitle(t("verify.rules_modal_title"));
+    const input = new (require("discord.js").TextInputBuilder)()
+      .setCustomId("rules")
+      .setLabel(t("verify.rules_modal_label"))
+      .setStyle(require("discord.js").TextInputStyle.Paragraph)
+      .setRequired(true)
+      .setMaxLength(4000)
+      .setValue(current.slice(0, 4000));
+    modal.addComponents(new AR().addComponents(input));
+    return ix.showModal(modal);
+  }
   if (c === "reaction-roles") { await ix.channel.send({ embeds: [E.rrP()], components: E.rrB() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
   if (c === "automod-panel")  { await ix.channel.send({ embeds: [E.amP(db.getAM())], components: [E.amB()] }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
 
@@ -124,7 +146,8 @@ async function handleCommand(ix, client) {
   if (c === "bug") {
     const b = db.getBug(ix.options.getInteger("id"));
     if (!b) return ix.reply({ content: t("common.not_found"), ephemeral: true });
-    return ix.reply({ embeds: [E.bugE(b, db.getHist(b.id), db.getCmts(b.id))], components: E.bugBB(b) });
+    // Only staff get the action button row — reporters viewing their own bug see comment only.
+    return ix.reply({ embeds: [E.bugE(b, db.getHist(b.id), db.getCmts(b.id))], components: E.bugBB(b, lang, isDevOrMod(ix.member)) });
   }
   if (c === "bug-assign") {
     const id = ix.options.getInteger("id"), u = ix.options.getUser("user");
@@ -135,7 +158,7 @@ async function handleCommand(ix, client) {
     const updated = db.getBug(id);
     if (prev && prev !== u.id) await ensureBugMember(ix.guild, updated, prev, false);
     await ensureBugMember(ix.guild, updated, u.id, true);
-    await ix.reply({ embeds: [E.bugE(updated, db.getHist(id))], components: E.bugBB(updated) });
+    await ix.reply({ embeds: [E.bugE(updated, db.getHist(id))], components: E.bugBB(updated, lang, true) });
     try { await u.send(`Bug assigned: **${updated.tag}: ${updated.title}**`); } catch {}
     return audit(ix.guild, `👤 ${updated.tag} → ${u.displayName}`);
   }
@@ -331,7 +354,7 @@ async function handleCommand(ix, client) {
           const msg = await ch.messages.fetch(bug.msgId);
           const chLang = i18n.resolveLang(null, ix.guildId);
           const chE = embedsFor(chLang);
-          await msg.edit({ embeds: [chE.bugE(bug, db.getHist(bug.id), db.getCmts(bug.id))], components: chE.bugBB(bug) });
+          await msg.edit({ embeds: [chE.bugE(bug, db.getHist(bug.id), db.getCmts(bug.id))], components: chE.bugBB(bug, chLang, false) });
         }
       } catch {}
     }
@@ -352,7 +375,7 @@ async function handleCommand(ix, client) {
           const msg = await ch.messages.fetch(bug.msgId);
           const chLang = i18n.resolveLang(null, ix.guildId);
           const chE = embedsFor(chLang);
-          await msg.edit({ embeds: [chE.bugE(bug, db.getHist(bug.id), db.getCmts(bug.id))], components: chE.bugBB(bug) });
+          await msg.edit({ embeds: [chE.bugE(bug, db.getHist(bug.id), db.getCmts(bug.id))], components: chE.bugBB(bug, chLang, false) });
         }
       } catch {}
     }

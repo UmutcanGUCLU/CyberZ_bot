@@ -151,7 +151,7 @@ client.on(EV.GuildMemberAdd, async (member) => {
       }
     }
 
-    // Onboarding DM — bilingual welcome + language selector (silently ignored if DMs closed)
+    // Onboarding DM — embed only, no action buttons (silently ignored if DMs closed)
     try {
       await member.send({
         embeds: [new EB()
@@ -159,10 +159,6 @@ client.on(EV.GuildMemberAdd, async (member) => {
           .setTitle(i18n.t("welcome.dm_title", "tr"))
           .setDescription(i18n.t("welcome.dm_desc", "tr", { guild: member.guild.name }))
           .setThumbnail(member.guild.iconURL() || null)],
-        components: [new AR().addComponents(
-          new BB().setCustomId("lang_tr").setLabel("Türkçe").setEmoji("🇹🇷").setStyle(BS.Primary),
-          new BB().setCustomId("lang_en").setLabel("English").setEmoji("🇬🇧").setStyle(BS.Secondary),
-        )],
       });
     } catch {}
   } catch (e) {

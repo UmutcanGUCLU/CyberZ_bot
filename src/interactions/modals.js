@@ -75,10 +75,13 @@ async function createBugFromData(client, ix, data) {
 
   const adminCh = cfg?.adminCh ? ix.guild.channels.cache.get(cfg.adminCh) : null;
   const postCh = bugCh || adminCh || ix.channel;
+  // If the post lands in the private bug ticket, only the comment button is visible to participants.
+  // In admin-panel (staff-only channel) keep the full action buttons.
+  const staffView = postCh !== bugCh;
   const msg = await postCh.send({
     content: chT("bug.new_bug", { tag: bug.tag, uid: ix.user.id }),
     embeds: [chE.bugE(bug, db.getHist(bug.id))],
-    components: chE.bugBB(bug),
+    components: chE.bugBB(bug, chLang, staffView),
   });
   db.setRef(bug.id, postCh.id, msg.id);
 
@@ -102,10 +105,14 @@ async function createBugFromData(client, ix, data) {
 }
 
 // Grant/revoke access to a bug's dedicated channel. Used when crew claim or are assigned.
+// Only touches channels whose parent category is "Bug Tickets" — legacy bugs whose chId points
+// at admin-panel or elsewhere must not have their perms mutated.
 async function ensureBugMember(guild, bug, userId, allow) {
   if (!bug?.chId || !userId) return;
   const ch = guild.channels.cache.get(bug.chId);
   if (!ch) return;
+  const parent = ch.parentId ? guild.channels.cache.get(ch.parentId) : null;
+  if (parent?.name !== "Bug Tickets") return;
   try {
     if (allow) {
       await ch.permissionOverwrites.edit(userId, {
@@ -183,8 +190,9 @@ async function handleModal(ix, client) {
     crisisMode.cancel(bid);
     if (b.to) db.incRes(b.to);
     const updated = db.getBug(bid);
+    const svR = !(updated.chId && updated.msgId && ix.message?.id === updated.msgId);
 
-    await ix.update({ embeds: [E.bugE(updated, db.getHist(bid))], components: E.bugBB(updated) });
+    await ix.update({ embeds: [E.bugE(updated, db.getHist(bid))], components: E.bugBB(updated, lang, svR) });
     await audit(ix.guild, `✅ ${updated.tag}: ${note}`);
 
     if (b.by !== ix.user.id) {
@@ -204,8 +212,29 @@ async function handleModal(ix, client) {
     const workaround = ix.fields.getTextInputValue("w") || null;
     const bug = db.markKnown(bid, workaround, ix.user.displayName);
     if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
-    await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug) });
+    const svK = !(bug.chId && bug.msgId && ix.message?.id === bug.msgId);
+    await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug, lang, svK) });
     return audit(ix.guild, `⚠️ ${bug.tag} marked known by ${ix.user.displayName}`);
+  }
+
+  // ===== Verification rules edit =====
+  if (id === "m_verify_rules") {
+    if (!isDevOrMod(ix.member)) return ix.reply({ content: t("common.staff_required"), ephemeral: true });
+    const newRules = ix.fields.getTextInputValue("rules");
+    db.setCfg(ix.guildId, { verifyRules: newRules });
+    // If a panel was placed before, edit it in place so the change is visible immediately.
+    const cfg = db.getCfg(ix.guildId);
+    if (cfg?.verifyPanelCh && cfg?.verifyMsgId) {
+      try {
+        const ch = ix.guild.channels.cache.get(cfg.verifyPanelCh);
+        if (ch) {
+          const msg = await ch.messages.fetch(cfg.verifyMsgId);
+          const embedsMod = require("../embedsFor")(lang);
+          await msg.edit({ embeds: [embedsMod.verifyP(lang, newRules)], components: embedsMod.verifyB(lang) });
+        }
+      } catch {}
+    }
+    return ix.reply({ content: t("verify.rules_saved"), ephemeral: true });
   }
 
   // ===== Bug comment =====
@@ -214,7 +243,8 @@ async function handleModal(ix, client) {
     const text = ix.fields.getTextInputValue("t");
     db.addCmt(bid, ix.user.id, ix.user.displayName, text);
     const updated = db.getBug(bid);
-    return ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
+    const svC = !(updated.chId && updated.msgId && ix.message?.id === updated.msgId);
+    return ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated, lang, svC) });
   }
 
   // ===== Ticket submission =====

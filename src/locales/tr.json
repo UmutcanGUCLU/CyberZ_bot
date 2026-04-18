@@ -96,6 +96,12 @@
     "critical_alert": "🚨 **KRİTİK!** <@&{role}> — {tag}",
     "assigned_dm": "Hata atandı: **{tag}: {title}**",
     "resolved_dm": "Çözüldü! **{tag}** — {note}",
+    "close_report_title": "🔒 Bug Ticket Kapatıldı — {tag}",
+    "close_report_desc": "**{tag} — {title}**\n\nBildirdiğin hata **{closer}** tarafından kapatıldı. İlgilendiğin için teşekkürler.",
+    "close_report_severity": "Önem",
+    "close_report_closed_by": "Kapatan",
+    "close_report_original": "Orijinal Açıklama",
+    "ticket_archiving": "🔒 **{tag}** kapatıldı. Bu kanal birazdan arşivlenecek…",
     "severity": {
       "critical": "Kritik",
       "high": "Yüksek",
@@ -270,7 +276,10 @@
     "btn_accept": "Kuralları Kabul Ediyorum",
     "verified": "✅ Doğrulandı! Hoş geldin.",
     "account_too_young": "❌ Doğrulama başarısız: Discord hesabın çok yeni (**{age} günlük**). Bu sunucu minimum **{required} günlük** hesap yaşı gerektiriyor. Daha sonra tekrar dene.",
-    "audit_young_account": "🚨 Doğrulama reddedildi: {name} hesabı sadece {age} günlük (min: {required})"
+    "audit_young_account": "🚨 Doğrulama reddedildi: {name} hesabı sadece {age} günlük (min: {required})",
+    "rules_modal_title": "Doğrulama Kurallarını Düzenle",
+    "rules_modal_label": "Yeni kural metni",
+    "rules_saved": "✅ Kurallar kaydedildi. Var olan panel otomatik güncellendi."
   },
   "reaction_roles": {
     "panel_title": "━━━━━━ Platform Seçimi ━━━━━━",

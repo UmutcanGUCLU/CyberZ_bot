@@ -96,6 +96,12 @@
     "critical_alert": "🚨 **CRITICAL!** <@&{role}> — {tag}",
     "assigned_dm": "Bug assigned: **{tag}: {title}**",
     "resolved_dm": "Resolved! **{tag}** — {note}",
+    "close_report_title": "🔒 Bug Ticket Closed — {tag}",
+    "close_report_desc": "**{tag} — {title}**\n\nYour report was closed by **{closer}**. Thanks for flagging it.",
+    "close_report_severity": "Severity",
+    "close_report_closed_by": "Closed by",
+    "close_report_original": "Original description",
+    "ticket_archiving": "🔒 **{tag}** closed. This channel will be archived shortly…",
     "severity": {
       "critical": "Critical",
       "high": "High",
@@ -270,7 +276,10 @@
     "btn_accept": "I Accept the Rules",
     "verified": "✅ Verified! Welcome.",
     "account_too_young": "❌ Verification failed: your Discord account is too new (**{age} days old**). This server requires a minimum account age of **{required} days**. Try again later.",
-    "audit_young_account": "🚨 Verification blocked: {name}'s account is only {age} days old (min: {required})"
+    "audit_young_account": "🚨 Verification blocked: {name}'s account is only {age} days old (min: {required})",
+    "rules_modal_title": "Edit Verification Rules",
+    "rules_modal_label": "New rules text",
+    "rules_saved": "✅ Rules saved. The existing panel was updated automatically."
   },
   "reaction_roles": {
     "panel_title": "━━━━━━ Choose Your Platform ━━━━━━",

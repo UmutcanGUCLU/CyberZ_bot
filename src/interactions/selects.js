@@ -86,7 +86,7 @@ async function handleSelect(ix, client) {
         const ch = ix.guild.channels.cache.get(updated.chId);
         if (ch) {
           const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated) });
+          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
         }
       } catch {}
     }
@@ -127,7 +127,7 @@ async function handleSelect(ix, client) {
         const ch = ix.guild.channels.cache.get(updated.chId);
         if (ch) {
           const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated) });
+          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
         }
       } catch {}
     }
@@ -152,7 +152,7 @@ async function handleSelect(ix, client) {
         const ch = ix.guild.channels.cache.get(updated.chId);
         if (ch) {
           const msg = await ch.messages.fetch(updated.msgId);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated) });
+          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
         }
       } catch {}
     }

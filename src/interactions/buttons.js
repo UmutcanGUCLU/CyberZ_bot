@@ -123,7 +123,7 @@ async function handleButton(ix, client) {
           const msg = await ch.messages.fetch(updated.msgId);
           const chLang = i18n.resolveLang(null, ix.guildId);
           const chE = embedsFor(chLang);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated) });
+          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
         }
       } catch {}
     }
@@ -146,7 +146,7 @@ async function handleButton(ix, client) {
         if (ch) {
           const msg = await ch.messages.fetch(bug.msgId);
           const updated = db.getBug(bid);
-          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated) });
+          await msg.edit({ embeds: [chE.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: chE.bugBB(updated, chLang, false) });
         }
       } catch {}
     }
@@ -630,6 +630,17 @@ async function handleButton(ix, client) {
   const bug = db.getBug(bid);
   if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
 
+  // Staff-only actions need crew role; the buttons are hidden from reporter view but guard anyway.
+  const STAFF_ACTS = new Set(["cl", "ua", "rv", "cx", "ro"]);
+  if (STAFF_ACTS.has(act) && !isDevOrMod(ix.member)) {
+    return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
+  }
+
+  // If the button was clicked on the bug's canonical ticket-channel message, preserve the
+  // reporter view (comment-only) on refresh. Anywhere else (ephemeral /bug reply etc.) gets full.
+  const isTicketMsg = !!(bug.chId && bug.msgId && ix.message?.id === bug.msgId);
+  const sv = !isTicketMsg;
+
   if (act === "cl") {
     const prev = bug.to;
     db.assignBug(bid, ix.user.id, ix.user.displayName);
@@ -638,7 +649,7 @@ async function handleButton(ix, client) {
     // Swap ticket access: drop previous assignee (if any), add the new claimer.
     if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, u, prev, false);
     await ensureBugMember(ix.guild, u, ix.user.id, true);
-    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
+    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_claimed", { tag: u.tag, title: u.title, dev: ix.user.displayName });
     }
@@ -650,7 +661,7 @@ async function handleButton(ix, client) {
     crisisMode.schedule(bid);  // unassigned again → restart SLA
     const u = db.getBug(bid);
     if (prev) await ensureBugMember(ix.guild, u, prev, false);
-    return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
+    return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
   }
   if (act === "rv") {
     const m = new MB().setCustomId(`mr_${bid}`).setTitle(`${bug.tag} Resolution`);
@@ -660,20 +671,64 @@ async function handleButton(ix, client) {
     return ix.showModal(m);
   }
   if (act === "cx") {
+    // Close → DM reporter with a closure report, then delete the private ticket channel.
     db.closeBug(bid, ix.user.displayName);
     crisisMode.cancel(bid);
     const u = db.getBug(bid);
-    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
-    if (u.by && u.by !== ix.user.id) {
-      dmBugStatus(client, u.by, ix.guildId, "bug_closed", { tag: u.tag, title: u.title, by: ix.user.displayName });
+
+    // Detailed DM report to the reporter
+    if (u.by) {
+      try {
+        const reporter = await client.users.fetch(u.by);
+        const rLang = i18n.langForUser(u.by, ix.guildId);
+        const severityLabel = i18n.t(`bug.severity.${u.sev}`, rLang);
+        const dm = new EB()
+          .setColor(0xe74c3c)
+          .setTitle(i18n.t("bug.close_report_title", rLang, { tag: u.tag }))
+          .setDescription(i18n.t("bug.close_report_desc", rLang, {
+            tag: u.tag, title: u.title, closer: ix.user.displayName,
+          }))
+          .addFields(
+            { name: i18n.t("bug.close_report_severity", rLang), value: severityLabel, inline: true },
+            { name: i18n.t("bug.close_report_closed_by", rLang), value: ix.user.displayName, inline: true },
+            { name: i18n.t("bug.close_report_original", rLang), value: (u.desc || "—").slice(0, 1000), inline: false },
+          )
+          .setFooter({ text: u.tag })
+          .setTimestamp();
+        await reporter.send({ embeds: [dm] });
+      } catch {}
     }
-    return audit(ix.guild, `🔒 ${u.tag}`);
+
+    await audit(ix.guild, `🔒 ${u.tag} (ticket archived)`);
+
+    // Acknowledge the click, then remove the ticket channel (which may contain this message).
+    const ticketCh = u.chId ? ix.guild.channels.cache.get(u.chId) : null;
+    // Legacy bugs: chId might point at admin-panel or elsewhere — only delete real Bug Tickets.
+    const parentCat = ticketCh?.parentId ? ix.guild.channels.cache.get(ticketCh.parentId) : null;
+    const isRealTicket = parentCat?.name === "Bug Tickets";
+    if (!ticketCh || !isRealTicket) {
+      return ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+    }
+    try {
+      if (isTicketMsg) {
+        // Clicking from inside the ticket — Discord requires an ack before the message disappears.
+        await ix.update({
+          embeds: [new EB().setColor(0xe74c3c).setDescription(t("bug.ticket_archiving", { tag: u.tag }))],
+          components: [],
+        });
+      } else {
+        await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
+      }
+    } catch {}
+    // Small delay so the reporter (if watching) sees the "archiving" notice before the channel goes.
+    setTimeout(() => { ticketCh.delete("Bug closed — ticket archived").catch(() => {}); }, 3000);
+    return;
   }
   if (act === "ro") {
     db.reopenBug(bid, ix.user.displayName);
     crisisMode.schedule(bid);  // reopened → SLA clock starts again
     const u = db.getBug(bid);
-    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u) });
+    await ix.update({ embeds: [E.bugE(u, db.getHist(bid))], components: E.bugBB(u, lang, sv) });
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_reopened", { tag: u.tag, title: u.title, by: ix.user.displayName });
     }
@@ -682,7 +737,7 @@ async function handleButton(ix, client) {
   if (act === "vu") {
     db.vote(bid, ix.user.id);
     const u = db.getBug(bid);
-    return ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u) });
+    return ix.update({ embeds: [E.bugE(u, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(u, lang, sv) });
   }
   if (act === "cm") {
     const m = new MB().setCustomId(`mc_${bid}`).setTitle(`${bug.tag} Comment`);

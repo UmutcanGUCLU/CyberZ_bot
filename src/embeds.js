@@ -21,13 +21,14 @@ const ST = {
 const tt = (lang) => (k, p) => i18n.t(k, lang, p);
 
 // ===== VERIFY =====
-function verifyP(lang = "tr") {
+// customRules (optional) — admin-edited rules text saved in cfg.verifyRules. Overrides the locale default.
+function verifyP(lang = "tr", customRules = null) {
   const t = tt(lang);
   return new E()
     .setColor(0x2ecc71)
     .setAuthor({ name: t("verify.panel_author") })
     .setTitle(t("verify.panel_title"))
-    .setDescription(t("verify.panel_desc"))
+    .setDescription(customRules || t("verify.panel_desc"))
     .setFooter({ text: "Studio Bot v7" })
     .setTimestamp();
 }
@@ -532,8 +533,15 @@ function bugE(b, history = [], comments = [], lang = "tr") {
   e.setFooter({ text: `${b.tag} | ${b.at}` });
   return e;
 }
-function bugBB(b, lang = "tr") {
+// staffView=false renders only the comment button — used in the bug-tickets channel where
+// the reporter (and anyone else in that channel who isn't staff) should not see action buttons.
+function bugBB(b, lang = "tr", staffView = true) {
   const t = tt(lang);
+  if (!staffView) {
+    return [new R().addComponents(
+      new B().setCustomId(`cm_${b.id}`).setLabel(t("bug.btn_comment")).setStyle(S.Secondary).setEmoji("💬"),
+    )];
+  }
   const s = b.status, rows = [];
 
   // Row 1: Primary status actions
