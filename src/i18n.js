@@ -6,7 +6,7 @@ const logger = require("./logger");
 
 const LOCALES = { tr, en };
 const SUPPORTED = ["tr", "en"];
-const DEFAULT_LANG = "tr";
+const DEFAULT_LANG = "en";
 
 function resolveKey(obj, path) {
   return path.split(".").reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : null, obj);
@@ -40,21 +40,12 @@ function t(key, lang, params) {
 
 /**
  * Resolve the effective language for a given interaction context.
- * Priority: user override → server default → "tr"
- * @param {string|null} uid - User ID (for interactions)
- * @param {string|null} gid - Guild ID (for server default)
- * @returns {"tr"|"en"}
+ * English-only mode: always returns "en" regardless of user/server preferences.
+ * The /dil and /language commands still run but have no effect until this is relaxed.
+ * @returns {"en"}
  */
-function resolveLang(uid, gid) {
-  if (uid) {
-    const member = db.getMemLang(uid);
-    if (member && SUPPORTED.includes(member)) return member;
-  }
-  if (gid) {
-    const cfg = db.getCfg(gid);
-    if (cfg?.lang && SUPPORTED.includes(cfg.lang)) return cfg.lang;
-  }
-  return DEFAULT_LANG;
+function resolveLang(_uid, _gid) {
+  return "en";
 }
 
 /**

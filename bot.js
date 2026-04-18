@@ -156,8 +156,8 @@ client.on(EV.GuildMemberAdd, async (member) => {
       await member.send({
         embeds: [new EB()
           .setColor(0x5865f2)
-          .setTitle(i18n.t("welcome.dm_title", "tr"))
-          .setDescription(i18n.t("welcome.dm_desc", "tr", { guild: member.guild.name }))
+          .setTitle(i18n.t("welcome.dm_title", "en"))
+          .setDescription(i18n.t("welcome.dm_desc", "en", { guild: member.guild.name }))
           .setThumbnail(member.guild.iconURL() || null)],
       });
     } catch {}

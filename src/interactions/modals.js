@@ -5,7 +5,7 @@ const {
 } = require("discord.js");
 const { db } = require("../db");
 const embedsFor = require("../embedsFor");
-const { audit } = require("../audit");
+const { audit, bugLog } = require("../audit");
 const i18n = require("../i18n");
 const rateLimit = require("../rateLimit");
 const achievements = require("../achievements");
@@ -97,7 +97,7 @@ async function createBugFromData(client, ix, data) {
     } catch {}
   }
 
-  await audit(ix.guild, `🐛 ${bug.tag} — ${data.title} (${data.severity})`);
+  await bugLog(ix.guild, `🐛 ${bug.tag} opened by ${ix.user.displayName} — ${data.title} (${data.severity})`);
 
   achievements.trigger(client, ix.user.id, ix.guildId).catch(() => {});
   crisisMode.schedule(bug.id);
@@ -152,16 +152,17 @@ async function handleModal(ix, client) {
   const E = embedsFor(lang);
 
   // ===== New bug report =====
-  if (id === "m_bug") {
+  // Modal customId carries the severity picked in the select step (m_bug_{critical|high|medium|low}).
+  // Platform was dropped from user input; all reports default to "all".
+  if (id.startsWith("m_bug_")) {
     const left = rateLimit.check(ix.user.id, "bug_report", BUG_COOLDOWN_S);
     if (left > 0) return ix.reply({ content: t("cooldown.bug_report", { s: left }), ephemeral: true });
     const title    = ix.fields.getTextInputValue("t");
     const desc     = ix.fields.getTextInputValue("d");
     const steps    = ix.fields.getTextInputValue("s") || "";
-    let severity   = ix.fields.getTextInputValue("v").toLowerCase().trim();
-    let platform   = (ix.fields.getTextInputValue("p") || "all").toLowerCase().trim();
+    let severity   = id.slice(6).toLowerCase().trim();
+    const platform = "all";
     if (!SEVERITIES.includes(severity)) severity = "medium";
-    if (!PLATFORMS.includes(platform)) platform = "all";
 
     // Duplicate detection — search for similar active bugs first
     const activeMatches = db.search(title)
@@ -211,7 +212,7 @@ async function handleModal(ix, client) {
     if (b.to) db.incRes(b.to);
     const updated = db.getBug(bid);
     await ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
-    await audit(ix.guild, `✅ ${updated.tag}: ${note}`);
+    await bugLog(ix.guild, `✅ ${updated.tag} resolved by ${ix.user.displayName} — ${note}`);
 
     if (b.by !== ix.user.id) {
       try {
@@ -223,6 +224,67 @@ async function handleModal(ix, client) {
     return;
   }
 
+  // ===== Bug resolution + close (Resolve & Close button) =====
+  if (id.startsWith("mrc_")) {
+    if (!isDevOrMod(ix.member)) return ix.reply({ content: "❌ You don't have permission to use this action.", ephemeral: true });
+    const bid = parseInt(id.slice(4));
+    const note = ix.fields.getTextInputValue("n");
+    const b = db.getBug(bid);
+    if (!b) return ix.reply({ content: t("common.not_found"), ephemeral: true });
+
+    db.resolveBug(bid, note, ix.user.displayName);
+    if (b.to) db.incRes(b.to);
+    db.closeBug(bid, ix.user.displayName);
+    crisisMode.cancel(bid);
+    const updated = db.getBug(bid);
+
+    // DM reporter with full closure report (resolution note included).
+    if (updated.by) {
+      try {
+        const reporter = await client.users.fetch(updated.by);
+        const rLang = i18n.langForUser(updated.by, ix.guildId);
+        const severityLabel = i18n.t(`bug.severity.${updated.sev}`, rLang);
+        const dm = new EB()
+          .setColor(0x2ecc71)
+          .setTitle(i18n.t("bug.close_report_title", rLang, { tag: updated.tag }))
+          .setDescription(i18n.t("bug.close_report_desc", rLang, {
+            tag: updated.tag, title: updated.title, closer: ix.user.displayName,
+          }))
+          .addFields(
+            { name: i18n.t("bug.close_report_severity", rLang), value: severityLabel, inline: true },
+            { name: i18n.t("bug.close_report_closed_by", rLang), value: ix.user.displayName, inline: true },
+            { name: i18n.t("bug.close_report_resolution", rLang), value: note.slice(0, 1000), inline: false },
+            { name: i18n.t("bug.close_report_original", rLang), value: (updated.desc || "—").slice(0, 1000), inline: false },
+          )
+          .setFooter({ text: updated.tag })
+          .setTimestamp();
+        await reporter.send({ embeds: [dm] });
+      } catch {}
+    }
+
+    await bugLog(ix.guild, `✅🔒 ${updated.tag} resolved + closed by ${ix.user.displayName} — ${note}`);
+
+    const ticketCh = updated.chId ? ix.guild.channels.cache.get(updated.chId) : null;
+    const parentCat = ticketCh?.parentId ? ix.guild.channels.cache.get(ticketCh.parentId) : null;
+    const isRealTicket = parentCat?.name === "Bug Tickets";
+    if (!ticketCh || !isRealTicket) {
+      return ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
+    }
+    const clickedInsideTicket = ix.message?.id === updated.msgId;
+    try {
+      if (clickedInsideTicket) {
+        await ix.update({
+          embeds: [new EB().setColor(0x2ecc71).setDescription(t("bug.ticket_archiving", { tag: updated.tag }))],
+          components: [],
+        });
+      } else {
+        await ix.update({ embeds: [E.bugE(updated, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(updated) });
+      }
+    } catch {}
+    setTimeout(() => { ticketCh.delete("Bug resolved & closed").catch(() => {}); }, 3000);
+    return;
+  }
+
   // ===== Mark bug as known (workaround modal) =====
   if (id.startsWith("mmk_")) {
     if (!isDevOrMod(ix.member)) return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
@@ -231,7 +293,7 @@ async function handleModal(ix, client) {
     const bug = db.markKnown(bid, workaround, ix.user.displayName);
     if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
     await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug) });
-    return audit(ix.guild, `⚠️ ${bug.tag} marked known by ${ix.user.displayName}`);
+    return bugLog(ix.guild, `⚠️ ${bug.tag} marked known by ${ix.user.displayName}`);
   }
 
   // ===== Verification rules edit =====

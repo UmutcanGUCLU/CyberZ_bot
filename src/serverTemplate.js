@@ -55,6 +55,7 @@ const CHANNELS = [
   { name: "admin-panel",     cat: "mgmt",      topic: "Admin",                cfgKey: "adminCh",   panel: "admin"    },
   { name: "automod",         cat: "mgmt",      topic: "AutoMod",              cfgKey: "amCh",      panel: "automod"  },
   { name: "bot-log",         cat: "mgmt",      topic: "Logs",                 cfgKey: "logCh"                        },
+  { name: "bug-logs",        cat: "mgmt",      topic: "Bug ticket activity",  cfgKey: "bugLogCh"                     },
   { name: "beta-key-mgmt",   cat: "mgmt",      topic: "Key management",       cfgKey: "betaAdm",   panel: "betamgmt" },
   { name: "beta-review",     cat: "mgmt",      topic: "Review applications",  cfgKey: "betaRev"                      },
 ];

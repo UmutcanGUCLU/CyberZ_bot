@@ -8,7 +8,7 @@ const { db } = require("./db");
 const logger = require("./logger");
 
 // ===== Tunables =====
-const ROOM_NAME = (displayName) => `${displayName}'in Odası`;
+const ROOM_NAME = (displayName) => `${displayName}'s Room`;
 // Env override takes priority over cfg.joinCreateCh — useful for local testing.
 const JOIN_TO_CREATE_ID = process.env.JOIN_TO_CREATE_ID || null;
 // Perms granted to the creator on their own room.

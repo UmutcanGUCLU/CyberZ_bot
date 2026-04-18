@@ -34,15 +34,11 @@ function verifyP(lang = "tr", customRules = null) {
 }
 function verifyB(lang = "tr") {
   const t = tt(lang);
-  // Two rows: language picker (always shown) + verify button
-  const langRow = new R().addComponents(
-    new B().setCustomId("lang_tr").setLabel("Türkçe").setEmoji("🇹🇷").setStyle(S.Secondary),
-    new B().setCustomId("lang_en").setLabel("English").setEmoji("🇬🇧").setStyle(S.Secondary),
-  );
+  // English-only mode: language picker row removed.
   const verifyRow = new R().addComponents(
     new B().setCustomId("verify_accept").setLabel(`  ${t("verify.btn_accept")}  `).setStyle(S.Success).setEmoji("✅")
   );
-  return [langRow, verifyRow];
+  return [verifyRow];
 }
 
 // ===== BUG PANEL =====
@@ -581,26 +577,25 @@ function bugBB(b, lang = "tr", staffView = true) {
   }
   const s = b.status, rows = [];
 
-  // Row 1: Primary status actions
+  // Row 1: Primary status actions (vote button removed; rvc = resolve & close ticket in one step)
   const r = new R();
   if (s === "open") {
     r.addComponents(
       new B().setCustomId(`cl_${b.id}`).setLabel(t("bug.btn_claim")).setStyle(S.Primary).setEmoji("🙋"),
       new B().setCustomId(`rv_${b.id}`).setLabel(t("bug.btn_resolve")).setStyle(S.Success).setEmoji("✅"),
+      new B().setCustomId(`rvc_${b.id}`).setLabel(t("bug.btn_resolve_close")).setStyle(S.Success).setEmoji("🏁"),
       new B().setCustomId(`cx_${b.id}`).setLabel(t("bug.btn_close")).setStyle(S.Secondary).setEmoji("🔒"),
-      new B().setCustomId(`vu_${b.id}`).setLabel(`${b.votes?.length || 0}`).setStyle(S.Secondary).setEmoji("👍"),
     );
   } else if (s === "in-progress") {
     r.addComponents(
       new B().setCustomId(`rv_${b.id}`).setLabel(t("bug.btn_resolve")).setStyle(S.Success).setEmoji("✅"),
+      new B().setCustomId(`rvc_${b.id}`).setLabel(t("bug.btn_resolve_close")).setStyle(S.Success).setEmoji("🏁"),
       new B().setCustomId(`cx_${b.id}`).setLabel(t("bug.btn_close")).setStyle(S.Secondary).setEmoji("🔒"),
       new B().setCustomId(`ua_${b.id}`).setLabel(t("bug.btn_unassign")).setStyle(S.Secondary).setEmoji("↩️"),
-      new B().setCustomId(`vu_${b.id}`).setLabel(`${b.votes?.length || 0}`).setStyle(S.Secondary).setEmoji("👍"),
     );
   } else {
     r.addComponents(
       new B().setCustomId(`ro_${b.id}`).setLabel(t("bug.btn_reopen")).setStyle(S.Danger).setEmoji("🔓"),
-      new B().setCustomId(`vu_${b.id}`).setLabel(`${b.votes?.length || 0}`).setStyle(S.Secondary).setEmoji("👍"),
     );
   }
   rows.push(r);

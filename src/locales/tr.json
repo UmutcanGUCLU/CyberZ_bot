@@ -59,6 +59,7 @@
     "btn_leaderboard": "Sıralama",
     "btn_claim": "Üstlen",
     "btn_resolve": "Çöz",
+    "btn_resolve_close": "Çöz & Kapat",
     "btn_close": "Kapat",
     "btn_reopen": "Yeniden Aç",
     "btn_unassign": "Bırak",
@@ -103,6 +104,15 @@
     "close_report_original": "Orijinal Açıklama",
     "ticket_archiving": "🔒 **{tag}** kapatıldı. Bu kanal birazdan arşivlenecek…",
     "staff_controls_header": "🛠️ **Crew Kontrolleri — {tag}**\nAşağıdaki butonlar yalnızca crew (Developer / Lead / Moderator / QA) tarafından kullanılabilir.",
+    "pick_severity_first": "Önce hatanın önem seviyesini seç — sonra detayları yazacağın form açılacak.",
+    "sev_select_placeholder": "Önem seviyesi seç…",
+    "sev_desc": {
+      "critical": "Oyun çöküyor / tamamen bozuk",
+      "high":     "Büyük sorun, oynanışı etkiliyor",
+      "medium":   "Tolere edilebilir bir sorun",
+      "low":      "Kozmetik / küçük detay"
+    },
+    "close_report_resolution": "Çözüm Notu",
     "severity": {
       "critical": "Kritik",
       "high": "Yüksek",

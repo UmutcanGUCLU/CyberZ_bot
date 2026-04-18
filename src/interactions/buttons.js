@@ -8,7 +8,7 @@ const {
 } = require("discord.js");
 const { db } = require("../db");
 const embedsFor = require("../embedsFor");
-const { audit } = require("../audit");
+const { audit, bugLog } = require("../audit");
 const i18n = require("../i18n");
 const achievements = require("../achievements");
 const { paginate, pageRow } = require("../pagination");
@@ -32,7 +32,7 @@ async function dmBugStatus(client, uid, guildId, key, params) {
 }
 
 // Whitelist for bug action prefixes (prevents ID collision with unknown buttons)
-const BUG_ACTIONS = ["cl", "ua", "rv", "cx", "ro", "vu", "cm", "th", "hi"];
+const BUG_ACTIONS = ["cl", "ua", "rv", "rvc", "cx", "ro", "cm", "th", "hi"];
 // Only comment is open to everyone; every other bug action requires crew. The denial is always
 // shown in English (per product decision) and ephemeral so only the clicker sees it.
 const PUBLIC_BUG_ACTS = new Set(["cm"]);
@@ -68,7 +68,7 @@ async function handleButton(ix, client) {
       const bug = db.unmarkKnown(bid, ix.user.displayName);
       if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
       await ix.update({ embeds: [E.bugE(bug, db.getHist(bid), db.getCmts(bid))], components: E.bugBB(bug) });
-      return audit(ix.guild, `✅ ${bug.tag} unmarked known by ${ix.user.displayName}`);
+      return bugLog(ix.guild, `✅ ${bug.tag} unmarked known by ${ix.user.displayName}`);
     }
 
     // Assign — show user picker
@@ -220,13 +220,10 @@ async function handleButton(ix, client) {
       return render(() => panels.faqHub(lang), () => panels.faqHubButtons(lang));
     }
     if (nav === "lang") {
-      // Show language picker in-place
-      const { AR: _AR, BB: _BB, BS: _BS } = { AR, BB, BS };
+      // English-only mode: the language picker is retained as a dead-end info panel.
       return ix.update({
-        embeds: [new EB().setColor(0x5865f2).setTitle(t("language.panel_title")).setDescription(t("language.panel_desc", { current: i18n.meta(lang).flag + " " + i18n.meta(lang).name }))],
+        embeds: [new EB().setColor(0x5865f2).setTitle("Language").setDescription("This server runs in **English** only.")],
         components: [new AR().addComponents(
-          new BB().setCustomId("lang_tr").setLabel("Türkçe").setEmoji("🇹🇷").setStyle(BS.Primary),
-          new BB().setCustomId("lang_en").setLabel("English").setEmoji("🇬🇧").setStyle(BS.Secondary),
           new BB().setCustomId("hub_main").setLabel(t("panel.btn_back_hub")).setEmoji("🏠").setStyle(BS.Secondary),
         )],
       });
@@ -379,15 +376,21 @@ async function handleButton(ix, client) {
 
   // ===== Bug panel =====
   if (id === "open_report") {
-    const m = new MB().setCustomId("m_bug").setTitle("Bug Report");
-    m.addComponents(
-      new AR().addComponents(new TI().setCustomId("t").setLabel("Bug Title").setStyle(TS.Short).setMaxLength(120).setRequired(true)),
-      new AR().addComponents(new TI().setCustomId("d").setLabel("Description").setStyle(TS.Paragraph).setMaxLength(1500).setRequired(true)),
-      new AR().addComponents(new TI().setCustomId("s").setLabel("Steps to Reproduce").setStyle(TS.Paragraph).setMaxLength(800).setRequired(false)),
-      new AR().addComponents(new TI().setCustomId("v").setLabel("Severity (critical/high/medium/low)").setStyle(TS.Short).setPlaceholder("medium").setMaxLength(10).setRequired(true)),
-      new AR().addComponents(new TI().setCustomId("p").setLabel("Platform (pc/ps/xbox/mobile/all)").setStyle(TS.Short).setPlaceholder("pc").setMaxLength(15).setRequired(false))
-    );
-    return ix.showModal(m);
+    // Step 1: severity picker (clickable). Step 2 opens the modal with the chosen severity encoded.
+    const select = new SSM()
+      .setCustomId("bug_sev_pick")
+      .setPlaceholder(t("bug.sev_select_placeholder"))
+      .addOptions(
+        { label: t("bug.severity.critical"), value: "critical", emoji: "🔴", description: t("bug.sev_desc.critical") },
+        { label: t("bug.severity.high"),     value: "high",     emoji: "🟠", description: t("bug.sev_desc.high") },
+        { label: t("bug.severity.medium"),   value: "medium",   emoji: "🟡", description: t("bug.sev_desc.medium") },
+        { label: t("bug.severity.low"),      value: "low",      emoji: "🟢", description: t("bug.sev_desc.low") },
+      );
+    return ix.reply({
+      content: t("bug.pick_severity_first"),
+      components: [new AR().addComponents(select)],
+      ephemeral: true,
+    });
   }
   if (id === "my_bugs")   return ix.reply({ embeds: [E.listE(db.bugsUser(ix.user.id), `📝 ${ix.user.displayName}`)], ephemeral: true });
   if (id === "open_dash") return ix.reply({ embeds: [E.dashE(db.bugStats(), db.devLb())], ephemeral: true });
@@ -631,7 +634,7 @@ async function handleButton(ix, client) {
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_claimed", { tag: u.tag, title: u.title, dev: ix.user.displayName });
     }
-    return audit(ix.guild, `🙋 ${u.tag} → ${ix.user.displayName}`);
+    return bugLog(ix.guild, `🙋 ${u.tag} claimed by ${ix.user.displayName}`);
   }
   if (act === "ua") {
     const prev = bug.to;
@@ -643,6 +646,14 @@ async function handleButton(ix, client) {
   }
   if (act === "rv") {
     const m = new MB().setCustomId(`mr_${bid}`).setTitle(`${bug.tag} Resolution`);
+    m.addComponents(new AR().addComponents(
+      new TI().setCustomId("n").setLabel("How did you fix it?").setStyle(TS.Paragraph).setRequired(true).setMaxLength(500)
+    ));
+    return ix.showModal(m);
+  }
+  if (act === "rvc") {
+    // Resolve & Close: collect resolution note, then close + archive ticket channel.
+    const m = new MB().setCustomId(`mrc_${bid}`).setTitle(`${bug.tag} Resolve & Close`);
     m.addComponents(new AR().addComponents(
       new TI().setCustomId("n").setLabel("How did you fix it?").setStyle(TS.Paragraph).setRequired(true).setMaxLength(500)
     ));
@@ -677,7 +688,7 @@ async function handleButton(ix, client) {
       } catch {}
     }
 
-    await audit(ix.guild, `🔒 ${u.tag} (ticket archived)`);
+    await bugLog(ix.guild, `🔒 ${u.tag} closed + archived by ${ix.user.displayName}`);
 
     // Acknowledge the click, then remove the ticket channel (which may contain this message).
     const ticketCh = u.chId ? ix.guild.channels.cache.get(u.chId) : null;
@@ -711,7 +722,7 @@ async function handleButton(ix, client) {
     if (u.by && u.by !== ix.user.id) {
       dmBugStatus(client, u.by, ix.guildId, "bug_reopened", { tag: u.tag, title: u.title, by: ix.user.displayName });
     }
-    return audit(ix.guild, `🔓 ${u.tag}`);
+    return bugLog(ix.guild, `🔓 ${u.tag} reopened by ${ix.user.displayName}`);
   }
   if (act === "vu") {
     db.vote(bid, ix.user.id);

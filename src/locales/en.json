@@ -59,6 +59,7 @@
     "btn_leaderboard": "Leaderboard",
     "btn_claim": "Claim",
     "btn_resolve": "Resolve",
+    "btn_resolve_close": "Resolve & Close",
     "btn_close": "Close",
     "btn_reopen": "Reopen",
     "btn_unassign": "Unassign",
@@ -103,6 +104,15 @@
     "close_report_original": "Original description",
     "ticket_archiving": "🔒 **{tag}** closed. This channel will be archived shortly…",
     "staff_controls_header": "🛠️ **Crew Controls — {tag}**\nThese actions are restricted to crew members (Developer / Lead / Moderator / QA).",
+    "pick_severity_first": "Pick the severity first — the bug details form opens right after.",
+    "sev_select_placeholder": "Pick severity…",
+    "sev_desc": {
+      "critical": "Game crashes / fully broken",
+      "high":     "Major issue affecting play",
+      "medium":   "Tolerable issue",
+      "low":      "Cosmetic / minor"
+    },
+    "close_report_resolution": "Resolution Note",
     "severity": {
       "critical": "Critical",
       "high": "High",

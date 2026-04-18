@@ -8,7 +8,7 @@ const {
 const { db } = require("../db");
 const embedsFor = require("../embedsFor");
 const logger = require("../logger");
-const { audit } = require("../audit");
+const { audit, bugLog } = require("../audit");
 const { scheduleGiveawayEnd, schedulePollEnd } = require("../scheduler");
 const i18n = require("../i18n");
 const achievements = require("../achievements");
@@ -47,7 +47,7 @@ async function handleCommand(ix, client) {
   }
 
   // ===== Help =====
-  if (c === "yardim" || c === "help") {
+  if (c === "help") {
     const embed = new EB()
       .setColor(0x5865f2)
       .setTitle(t("help.panel_title"))
@@ -67,7 +67,7 @@ async function handleCommand(ix, client) {
   }
 
   // ===== Achievements =====
-  if (c === "rozetler" || c === "achievements") {
+  if (c === "achievements") {
     const target = ix.options.getUser("user") || ix.user;
     const member = db.getMem(target.id);
     const earned = member.achievements || [];
@@ -91,17 +91,9 @@ async function handleCommand(ix, client) {
   }
 
   // ===== Language =====
-  if (c === "dil" || c === "language") {
-    const current = i18n.meta(lang).flag + " " + i18n.meta(lang).name;
-    const embed = new EB()
-      .setColor(0x5865f2)
-      .setTitle(t("language.panel_title"))
-      .setDescription(t("language.panel_desc", { current }));
-    const row = new AR().addComponents(
-      new BB().setCustomId("lang_tr").setLabel("Türkçe").setEmoji("🇹🇷").setStyle(BS.Primary),
-      new BB().setCustomId("lang_en").setLabel("English").setEmoji("🇬🇧").setStyle(BS.Secondary),
-    );
-    return ix.reply({ embeds: [embed], components: [row], ephemeral: true });
+  // English-only mode: command kept for backwards compatibility but returns a static notice.
+  if (c === "language") {
+    return ix.reply({ content: "This server runs in **English** only.", ephemeral: true });
   }
 
   // ===== Setup & reset =====
@@ -160,7 +152,7 @@ async function handleCommand(ix, client) {
     await ensureBugMember(ix.guild, updated, u.id, true);
     await ix.reply({ embeds: [E.bugE(updated, db.getHist(id))], components: E.bugBB(updated, lang, true) });
     try { await u.send(`Bug assigned: **${updated.tag}: ${updated.title}**`); } catch {}
-    return audit(ix.guild, `👤 ${updated.tag} → ${u.displayName}`);
+    return bugLog(ix.guild, `👤 ${updated.tag} assigned to ${u.displayName} by ${ix.user.displayName}`);
   }
   if (c === "bugs") {
     const f = ix.options.getString("filter") || "all";
@@ -292,7 +284,7 @@ async function handleCommand(ix, client) {
   }
 
   // ===== FAQ =====
-  if (c === "sss" || c === "faq") {
+  if (c === "faq") {
     const all = db.faqs();
     const embed = new EB()
       .setColor(0x3498db)
@@ -316,17 +308,17 @@ async function handleCommand(ix, client) {
       .addOptions(options);
     return ix.reply({ embeds: [embed], components: [new AR().addComponents(select)], ephemeral: true });
   }
-  if (c === "sss-ekle") {
+  if (c === "faq-add") {
     if (!isDevOrMod(ix.member)) {
       return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
-    const question = ix.options.getString("soru");
-    const answer = ix.options.getString("cevap");
-    const category = ix.options.getString("kategori") || "general";
+    const question = ix.options.getString("question");
+    const answer = ix.options.getString("answer");
+    const category = ix.options.getString("category") || "general";
     const faq = db.mkFaq(question, answer, category, ix.user.displayName);
     return ix.reply({ content: t("faq.added", { id: faq.id }), ephemeral: true });
   }
-  if (c === "sss-sil") {
+  if (c === "faq-remove") {
     if (!isDevOrMod(ix.member)) {
       return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
@@ -347,7 +339,7 @@ async function handleCommand(ix, client) {
     if (!bug) return ix.reply({ content: t("common.not_found"), ephemeral: true });
     await ix.reply({ content: t("known_issues.marked", { tag: bug.tag }), ephemeral: true });
     refreshBugTicket(ix.guild, bug, i18n.resolveLang(null, ix.guildId));
-    return audit(ix.guild, `⚠️ ${bug.tag} marked known (${workaround ? "with workaround" : "no workaround"})`);
+    return bugLog(ix.guild, `⚠️ ${bug.tag} marked known by ${ix.user.displayName} (${workaround ? "with workaround" : "no workaround"})`);
   }
   if (c === "unmark-known") {
     if (!isDevOrMod(ix.member)) {
@@ -368,7 +360,7 @@ async function handleCommand(ix, client) {
         }
       } catch {}
     }
-    return audit(ix.guild, `✅ ${bug.tag} unmarked known`);
+    return bugLog(ix.guild, `✅ ${bug.tag} unmarked known by ${ix.user.displayName}`);
   }
   if (c === "known-issues") {
     const bugs = db.knownBugs();
@@ -538,17 +530,17 @@ async function handleCommand(ix, client) {
   }
 
   // ===== Q&A Sessions =====
-  if (c === "qa-ac") {
+  if (c === "qa-open") {
     if (!isDevOrMod(ix.member)) {
       return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
     const existing = db.activeQa();
     if (existing) return ix.reply({ content: t("qa.already_active", { topic: existing.topic }), ephemeral: true });
-    const topic = ix.options.getString("tema");
+    const topic = ix.options.getString("topic");
     const qa = db.mkQa(topic, ix.user.displayName);
     return ix.reply({ content: t("qa.opened", { topic: qa.topic }) });
   }
-  if (c === "qa-kapat") {
+  if (c === "qa-close") {
     if (!isDevOrMod(ix.member)) {
       return ix.reply({ content: t("common.staff_required"), ephemeral: true });
     }
@@ -557,7 +549,7 @@ async function handleCommand(ix, client) {
     const closed = db.closeQa(active.id);
     return ix.reply({ content: t("qa.closed", { topic: closed.topic, n: closed.questions.length }) });
   }
-  if (c === "qa-soru") {
+  if (c === "qa-ask") {
     const active = db.activeQa();
     if (!active) return ix.reply({ content: t("qa.no_active"), ephemeral: true });
     const modal = new (require("discord.js").ModalBuilder)()
@@ -572,7 +564,7 @@ async function handleCommand(ix, client) {
     ));
     return ix.showModal(modal);
   }
-  if (c === "qa-liste") {
+  if (c === "qa-list") {
     const active = db.activeQa();
     if (!active) return ix.reply({ content: t("qa.no_active"), ephemeral: true });
     const top = db.qaTopQuestions(active.id, 10);
@@ -767,7 +759,7 @@ async function cmdSyncServer(ix, client) {
   await ix.deferReply({ ephemeral: true });
   try {
     const g = ix.guild;
-    const cleanup = ix.options.getBoolean("temizle") || false;
+    const cleanup = ix.options.getBoolean("cleanup") || false;
     const result = await serverTemplate.ensureAll(g, client.user.id, { ChannelType: CH });
     db.setCfg(g.id, serverTemplate.buildCfg(result));
 

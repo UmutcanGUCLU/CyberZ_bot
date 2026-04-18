@@ -1,10 +1,13 @@
 // Select menu dispatcher
-const { EmbedBuilder: EB, ActionRowBuilder: AR, StringSelectMenuBuilder: SSM } = require("discord.js");
+const {
+  EmbedBuilder: EB, ActionRowBuilder: AR, StringSelectMenuBuilder: SSM,
+  ModalBuilder: MB, TextInputBuilder: TI, TextInputStyle: TS,
+} = require("discord.js");
 const { db } = require("../db");
 const embedsFor = require("../embedsFor");
 const i18n = require("../i18n");
 const { paginate, pageRow } = require("../pagination");
-const { audit } = require("../audit");
+const { audit, bugLog } = require("../audit");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
 const { ensureBugMember, refreshBugTicket } = require("./modals");
@@ -66,6 +69,22 @@ async function handleSelect(ix, client) {
     return ix.update({ embeds: [embed], components: [new AR().addComponents(select)] });
   }
 
+  // ===== Bug severity picker → opens modal =====
+  // Bridges the clickable severity select (bug panel) to the actual report modal.
+  // The chosen severity rides in the modal customId so the submit handler doesn't need shared state.
+  if (ix.customId === "bug_sev_pick") {
+    const severity = ix.values[0];
+    const m = new MB()
+      .setCustomId(`m_bug_${severity}`)
+      .setTitle(`Bug Report — ${severity.toUpperCase()}`);
+    m.addComponents(
+      new AR().addComponents(new TI().setCustomId("t").setLabel(t("bug.modal_title_label")).setStyle(TS.Short).setMaxLength(120).setRequired(true)),
+      new AR().addComponents(new TI().setCustomId("d").setLabel(t("bug.modal_desc_label")).setStyle(TS.Paragraph).setMaxLength(1500).setRequired(true)),
+      new AR().addComponents(new TI().setCustomId("s").setLabel(t("bug.modal_steps_label")).setStyle(TS.Paragraph).setMaxLength(800).setRequired(false)),
+    );
+    return ix.showModal(m);
+  }
+
   // ===== Triage: quick-claim from dropdown =====
   if (ix.customId === "trg_claim") {
     if (!isDevOrMod(ix.member)) return ix.reply({ content: t("bug.dev_only"), ephemeral: true });
@@ -79,7 +98,7 @@ async function handleSelect(ix, client) {
     if (prev && prev !== ix.user.id) await ensureBugMember(ix.guild, updated, prev, false);
     await ensureBugMember(ix.guild, updated, ix.user.id, true);
     refreshBugTicket(ix.guild, updated, i18n.resolveLang(null, ix.guildId));
-    await audit(ix.guild, `🙋 ${updated.tag} claimed by ${ix.user.displayName} via triage`);
+    await bugLog(ix.guild, `🙋 ${updated.tag} claimed by ${ix.user.displayName} via triage`);
     return ix.update({ content: t("triage.quick_claimed", { tag: updated.tag }), embeds: [], components: [] });
   }
 
@@ -112,7 +131,7 @@ async function handleSelect(ix, client) {
     const doneMsg = uid
       ? t("bug.assigned", { tag: updated.tag, uid })
       : t("bug.assign_cleared");
-    await audit(ix.guild, `👤 ${updated.tag} → ${uid ? `<@${uid}>` : "unassigned"} by ${ix.user.displayName}`);
+    await bugLog(ix.guild, `👤 ${updated.tag} → ${uid ? `<@${uid}>` : "unassigned"} by ${ix.user.displayName}`);
     return ix.update({ content: doneMsg, embeds: [], components: [] });
   }
 
