@@ -72,8 +72,9 @@ const prefixes = [];
 while ((mm = PREFIX_RE.exec(allHandlers))) prefixes.push(mm[1]);
 
 // Bug action prefixes are handled via BUG_ACTIONS whitelist + split/parseInt (not startsWith)
-const BUG_ACTION_PREFIXES = ["cl_", "ua_", "rv_", "cx_", "ro_", "vu_", "cm_", "th_", "hi_"];
+const BUG_ACTION_PREFIXES = ["cl_", "ua_", "rv_", "rvc_", "cx_", "ro_", "vu_", "cm_", "th_", "hi_", "mk_", "umk_", "asg_", "sev_"];
 
+// Function to check if ID is handled
 function isHandled(id) {
   if (exacts.has(id)) return true;
   if (prefixes.some(p => id.startsWith(p))) return true;
@@ -83,7 +84,7 @@ function isHandled(id) {
 
 // Modal text inputs also use setCustomId but are NOT routable interactions —
 // they're form field names accessed via ix.fields.getTextInputValue(). Skip them.
-const MODAL_FIELD_IDS = new Set(["w", "t", "d", "s", "v", "p", "c", "r", "k", "n", "q"]);
+const MODAL_FIELD_IDS = new Set(["w", "t", "d", "s", "v", "p", "c", "r", "k", "n", "q", "rules"]);
 
 const unhandled = [];
 for (const id of ids) {

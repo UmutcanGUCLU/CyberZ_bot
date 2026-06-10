@@ -66,6 +66,27 @@ async function handleCommand(ix, client) {
     return ix.reply({ embeds: [embed], components: [new AR().addComponents(select)], ephemeral: true });
   }
 
+  // ===== Invite =====
+  if (c === "invite") {
+    if (!isDevOrMod(ix.member)) {
+      return ix.reply({ content: t("common.staff_required"), ephemeral: true });
+    }
+    if (!ix.guild || !ix.channel?.createInvite) {
+      return ix.reply({ content: t("invite.failed"), ephemeral: true });
+    }
+    try {
+      const invite = await ix.channel.createInvite({
+        maxAge: 0,
+        maxUses: 0,
+        unique: false
+      });
+      return ix.reply({ content: t("invite.created", { url: invite.url }), ephemeral: true });
+    } catch (e) {
+      logger.error("Invite creation failed:", e.message);
+      return ix.reply({ content: t("invite.failed"), ephemeral: true });
+    }
+  }
+
   // ===== Achievements =====
   if (c === "achievements") {
     const target = ix.options.getUser("user") || ix.user;

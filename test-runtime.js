@@ -36,9 +36,9 @@ t("missing key returns key itself", () => {
   const v = i18n.t("nonexistent.key", "tr");
   if (v !== "nonexistent.key") throw new Error("got: " + v);
 });
-t("invalid lang falls back to TR", () => {
+t("invalid lang falls back to EN", () => {
   const v = i18n.t("common.not_found", "xx");
-  if (v !== "Bulunamadı.") throw new Error("got: " + v);
+  if (v !== "Not found.") throw new Error("got: " + v);
 });
 
 console.log("\n=== pagination ===");

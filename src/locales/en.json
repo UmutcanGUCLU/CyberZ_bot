@@ -626,6 +626,10 @@
     "voted": "👍 Added your vote to **{tag}**. Thanks!",
     "expired": "⏱️ Expired. Please try again to create a new report."
   },
+  "invite": {
+    "created": "✅ Permanent invite link generated:\n{url}",
+    "failed": "❌ Failed to generate invite link."
+  },
   "achievements": {
     "cmd_desc": "View your badges",
     "panel_title": "🏅 Your Badges",

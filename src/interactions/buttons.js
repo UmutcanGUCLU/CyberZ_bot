@@ -32,7 +32,7 @@ async function dmBugStatus(client, uid, guildId, key, params) {
 }
 
 // Whitelist for bug action prefixes (prevents ID collision with unknown buttons)
-const BUG_ACTIONS = ["cl", "ua", "rv", "rvc", "cx", "ro", "cm", "th", "hi"];
+const BUG_ACTIONS = ["cl", "ua", "rv", "rvc", "cx", "ro", "vu", "cm", "th", "hi"];
 // Only comment is open to everyone; every other bug action requires crew. The denial is always
 // shown in English (per product decision) and ephemeral so only the clicker sees it.
 const PUBLIC_BUG_ACTS = new Set(["cm"]);

@@ -161,6 +161,7 @@ const commands = [
 
   // --- Help ---
   new SC().setName("help").setDescription("Command list and bot guide"),
+  new SC().setName("invite").setDescription("Generate a permanent invite link for this server"),
 
   // --- Trust levels ---
   new SC().setName("trust-check").setDescription("View trust level")

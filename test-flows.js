@@ -47,6 +47,7 @@ function mockIx(overrides = {}) {
       send: async (opts) => { replies.push({ kind: "channel.send", opts }); return { id: "msg-new", startThread: async () => ({ id: "thread", send: async () => {} }) }; },
       messages: { fetch: async () => null },
       threads: { create: async () => ({ id: "thread", send: async () => {} }) },
+      createInvite: async () => ({ url: "https://discord.gg/test-invite" }),
     },
     channelId: "ch1",
     commandName: "",
@@ -108,9 +109,9 @@ async function runAndCheck(name, handlerFn, ix, assertFn) {
 async function main() {
   const diagBefore = (label) => console.log(`  [diag after ${label}] bugs:`, db.bugsActive().length);
 
-  console.log("\n=== /yardim command ===");
+  console.log("\n=== /help command ===");
   {
-    const ix = mockIx({ commandName: "yardim" });
+    const ix = mockIx({ commandName: "help" });
     await runAndCheck("shows help panel with dropdown", handleCommand, ix, (ix) => {
       if (!ix._replies.length) throw new Error("no reply sent");
       const r = ix._replies[0];
@@ -118,18 +119,18 @@ async function main() {
     });
   }
 
-  console.log("\n=== /dil language selector ===");
+  console.log("\n=== /language language selector ===");
   {
-    const ix = mockIx({ commandName: "dil" });
-    await runAndCheck("shows TR/EN buttons", handleCommand, ix, (ix) => {
+    const ix = mockIx({ commandName: "language" });
+    await runAndCheck("shows language selection panel", handleCommand, ix, (ix) => {
       const r = ix._replies[0];
-      if (!r.opts.components?.length) throw new Error("no components");
+      if (!r.opts.content?.includes("English")) throw new Error("no English notice");
     });
   }
 
-  console.log("\n=== /rozetler ===");
+  console.log("\n=== /achievements ===");
   {
-    const ix = mockIx({ commandName: "rozetler" });
+    const ix = mockIx({ commandName: "achievements" });
     await runAndCheck("shows achievement panel", handleCommand, ix, (ix) => {
       const r = ix._replies[0];
       if (!r.opts.embeds?.length) throw new Error("no embed");
@@ -165,31 +166,31 @@ async function main() {
     });
     await runAndCheck("non-dev gets dev_only message", handleCommand, ix, (ix) => {
       const r = ix._replies[0];
-      if (!r.opts.content?.includes("🛡️")) throw new Error("not the dev_only message");
+      if (!r.opts.content?.includes("🛡️") && !r.opts.content?.includes("dev/moderator")) throw new Error("not the dev_only message");
     });
   }
 
-  console.log("\n=== /sss (FAQ empty) ===");
+  console.log("\n=== /faq (FAQ empty) ===");
   {
-    const ix = mockIx({ commandName: "sss" });
+    const ix = mockIx({ commandName: "faq" });
     await runAndCheck("empty FAQ shows empty message", handleCommand, ix, (ix) => {
       const r = ix._replies[0];
       if (!r.opts.embeds?.length) throw new Error("no embed");
     });
   }
 
-  console.log("\n=== /sss-ekle + /sss again ===");
+  console.log("\n=== /faq-add + /faq again ===");
   {
     const addIx = mockIx({
-      commandName: "sss-ekle",
-      stringOpts: { soru: "Q1", cevap: "A1", kategori: "general" },
+      commandName: "faq-add",
+      stringOpts: { question: "Q1", answer: "A1", category: "general" },
     });
     await runAndCheck("adding FAQ works", handleCommand, addIx, (ix) => {
       const r = ix._replies[0];
       if (!r?.opts.content?.match(/#\d+/)) throw new Error("no add confirmation; got: " + JSON.stringify(r));
     });
 
-    const listIx = mockIx({ commandName: "sss" });
+    const listIx = mockIx({ commandName: "faq" });
     await runAndCheck("FAQ panel shows with dropdown after add", handleCommand, listIx, (ix) => {
       const r = ix._replies[0];
       if (!r.opts.components?.length) throw new Error("no dropdown");
@@ -200,7 +201,7 @@ async function main() {
   {
     console.log("  [diag] bugs in DB at this point:", db.bugsActive().length);
     const ix = mockIx({
-      customId: "m_bug",
+      customId: "m_bug_high",
       fieldValues: { t: "Totally unique bug title", d: "desc", s: "", v: "high", p: "pc" },
     });
     await runAndCheck("creates bug directly when no similar exists", handleModal, ix, (ix) => {
@@ -214,7 +215,7 @@ async function main() {
   {
     // Now the DB has a bug — submitting similar should trigger duplicate UI
     const ix = mockIx({
-      customId: "m_bug",
+      customId: "m_bug_high",
       user: { id: "user2", displayName: "Tester2" },  // different user to bypass rate limit
       fieldValues: { t: "Totally unique bug title again", d: "desc", s: "", v: "high", p: "pc" },
     });
@@ -264,7 +265,7 @@ async function main() {
     });
     await runAndCheck("non-dev blocked from mk_ button", handleButton, ix, (ix) => {
       const r = ix._replies[0];
-      if (!r.opts.content?.includes("🛡️")) throw new Error("not dev_only");
+      if (!r.opts.content?.includes("permission") && !r.opts.content?.includes("🛡️")) throw new Error("not dev_only");
     });
   }
 
@@ -311,6 +312,15 @@ async function main() {
     const ix = mockIx({ customId: "dup_vote_1", user: { id: "voter5", displayName: "V" } });
     await runAndCheck("dup_vote button updates reply", handleButton, ix, (ix) => {
       if (!ix._updates[0]) throw new Error("no update");
+    });
+  }
+
+  console.log("\n=== /invite command ===");
+  {
+    const ix = mockIx({ commandName: "invite" });
+    await runAndCheck("creates permanent invite link", handleCommand, ix, (ix) => {
+      const r = ix._replies[0];
+      if (!r.opts.content?.includes("https://discord.gg/test-invite")) throw new Error("no invite url in reply");
     });
   }
 

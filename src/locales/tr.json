@@ -626,6 +626,10 @@
     "voted": "👍 **{tag}** bug'ına oyun eklendi. Teşekkürler!",
     "expired": "⏱️ Süre doldu. Yeni bir rapor oluşturmak için tekrar dene."
   },
+  "invite": {
+    "created": "✅ Süresiz davet linki oluşturuldu:\n{url}",
+    "failed": "❌ Davet linki oluşturulamadı."
+  },
   "achievements": {
     "cmd_desc": "Rozetlerini görüntüle",
     "panel_title": "🏅 Rozetlerin",
