@@ -45,7 +45,7 @@ function mockIx(overrides = {}) {
     channel: {
       id: "ch1",
       send: async (opts) => { replies.push({ kind: "channel.send", opts }); return { id: "msg-new", startThread: async () => ({ id: "thread", send: async () => {} }) }; },
-      messages: { fetch: async () => null },
+      messages: { fetch: async () => new Map() },
       threads: { create: async () => ({ id: "thread", send: async () => {} }) },
       createInvite: async () => ({ url: "https://discord.gg/test-invite" }),
     },
@@ -321,6 +321,24 @@ async function main() {
     await runAndCheck("creates permanent invite link", handleCommand, ix, (ix) => {
       const r = ix._replies[0];
       if (!r.opts.content?.includes("https://discord.gg/test-invite")) throw new Error("no invite url in reply");
+    });
+  }
+
+  console.log("\n=== ticket close flow (transcript) ===");
+  {
+    // Create a mock ticket in the DB
+    const tkt = db.mkTkt("user1", "Tester", "technical", "My game is crashing");
+    db.setTktCh(tkt.id, "ch1"); // associate ticket with mock channel ch1
+
+    const ix = mockIx({
+      commandName: "ticket-close",
+      channelId: "ch1",
+      stringOpts: { reason: "Solved issue" },
+    });
+
+    await runAndCheck("creates transcript and closes ticket", handleCommand, ix, (ix) => {
+      const r = ix._replies[0];
+      if (!r.opts.embeds?.length) throw new Error("no reply embed");
     });
   }
 

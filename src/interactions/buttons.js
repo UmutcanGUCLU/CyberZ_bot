@@ -14,6 +14,7 @@ const achievements = require("../achievements");
 const { paginate, pageRow } = require("../pagination");
 const pendingBugs = require("../pendingBugs");
 const { createBugFromData, ensureBugMember, refreshBugMain, refreshBugTicket } = require("./modals");
+const { sendTicketTranscript } = require("../transcript");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
 const panels = require("../panels");
@@ -457,6 +458,7 @@ async function handleButton(ix, client) {
         .setColor(0x95a5a6)
         .setDescription(t("ticket.closed_desc"))
     ]});
+    if (tkt) await sendTicketTranscript(ix, tkt, client);
     await audit(ix.guild, `🔒 ${tkt?.tag}`);
     setTimeout(async () => { try { await ix.channel.delete(); } catch {} }, 10000);
     return;

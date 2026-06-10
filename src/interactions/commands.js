@@ -18,6 +18,7 @@ const trust = require("../trust");
 const panels = require("../panels");
 const serverTemplate = require("../serverTemplate");
 const { ensureBugMember, refreshBugTicket } = require("./modals");
+const { sendTicketTranscript } = require("../transcript");
 
 async function handleCommand(ix, client) {
   const c = ix.commandName;
@@ -509,6 +510,7 @@ async function handleCommand(ix, client) {
     await ix.reply({ embeds: [
       new EB().setTitle(`${t.tag} Closed`).setColor(0x95a5a6).setDescription("Channel will be deleted in 10s.")
     ]});
+    await sendTicketTranscript(ix, t, client);
     await audit(ix.guild, `🔒 ${t.tag}`);
     setTimeout(async () => { try { await ix.channel.delete(); } catch {} }, 10000);
     return;

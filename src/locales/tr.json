@@ -194,7 +194,8 @@
     "closed_title": "{tag} Kapatıldı",
     "closed_desc": "Kanal 10 saniye içinde silinecek.",
     "not_a_ticket": "Bu bir talep kanalı değil.",
-    "open_tickets_title": "🎫 Açık Talepler"
+    "open_tickets_title": "🎫 Açık Talepler",
+    "transcript_dm_desc": "**{tag}** numaralı destek talebiniz **{closedBy}** tarafından kapatıldı. Konuşma geçmişinin bir kopyası ekte yer almaktadır."
   },
   "suggestion": {
     "panel_title": "━━━━━━ Öneri / Geri Bildirim ━━━━━━",

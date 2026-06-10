@@ -194,7 +194,8 @@
     "closed_title": "{tag} Closed",
     "closed_desc": "Channel will be deleted in 10s.",
     "not_a_ticket": "Not a ticket channel.",
-    "open_tickets_title": "🎫 Open Tickets"
+    "open_tickets_title": "🎫 Open Tickets",
+    "transcript_dm_desc": "Your ticket **{tag}** has been closed by **{closedBy}**. A copy of your transcript is attached below."
   },
   "suggestion": {
     "panel_title": "━━━━━━ Suggestions / Feedback ━━━━━━",
