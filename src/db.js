@@ -191,6 +191,23 @@ const db = {
     return b;
   },
   getBug(id) { return ld().bugs.find(b => b.id === id) || null; },
+  getBugByTag(tag) { return ld().bugs.find(b => b.tag === tag) || null; },
+  // Apply a change set pushed from the website (crew.db) onto a public bug, then
+  // the caller refreshes the Discord ticket embed. Only touches provided fields.
+  applyWebSync(tag, ch) {
+    const d = ld(), b = d.bugs.find(x => x.tag === tag);
+    if (!b) return null;
+    if (ch.status !== undefined && ch.status !== null) b.status = ch.status;
+    if (ch.sev !== undefined && ch.sev !== null) b.sev = ch.sev;
+    if (ch.assignee !== undefined) {
+      b.to = ch.assignee || null;
+      b.toN = ch.assignee ? (ch.assigneeName || b.toN || "Web") : null;
+    }
+    b.upd = now();
+    d.history.push({ bid: b.id, act: "web-sync", by: "Web", at: now() });
+    sv();
+    return b;
+  },
   assignBug(id, uid, n) {
     const d = ld(), b = d.bugs.find(x => x.id === id);
     if (!b) return;

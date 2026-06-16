@@ -22,6 +22,7 @@ const { handleCommand } = require("./src/interactions/commands");
 const { handleButton }  = require("./src/interactions/buttons");
 const { handleModal }   = require("./src/interactions/modals");
 const { handleSelect }  = require("./src/interactions/selects");
+const { refreshBugTicket } = require("./src/interactions/modals");
 
 const client = new Client({
   intents: [
@@ -253,6 +254,52 @@ client.on(EV.MessageCreate, async (msg) => {
       await msg.channel.send(gt("automod.triggered_mentions", { uid: msg.author.id }))
         .then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
     } catch {}
+  }
+});
+
+// ===== WEB → DISCORD SYNC: crew bot posts CYBERZ_SYNC markers in the feed channel =====
+// When the team edits a PUBLIC bug on the website, the crew bot emits a plain-text
+// marker here; we apply it to our data.json and refresh the ticket embed.
+function mapWebStatus(s) {
+  switch (s) {
+    case "open": return "open";
+    case "in_progress":
+    case "in_review": return "in-progress";
+    case "fixed": return "resolved";
+    case "closed":
+    case "wontfix": return "closed";
+    default: return undefined; // unknown → leave unchanged
+  }
+}
+
+client.on(EV.MessageCreate, async (msg) => {
+  try {
+    const feedId = process.env.BUG_FEED_CHANNEL_ID;
+    if (!feedId || msg.channelId !== feedId) return;
+    if (!msg.author?.bot || !msg.content?.startsWith("CYBERZ_SYNC|")) return;
+    // CYBERZ_SYNC|GAME-0015|status=fixed|priority=high|assignee=123
+    const parts = msg.content.split("|");
+    const tag = parts[1];
+    const fields = {};
+    for (const part of parts.slice(2)) {
+      const eq = part.indexOf("=");
+      if (eq > 0) fields[part.slice(0, eq)] = part.slice(eq + 1);
+    }
+    if (!db.getBugByTag(tag)) return;
+    const changes = {};
+    if (fields.status !== undefined) { const m = mapWebStatus(fields.status); if (m) changes.status = m; }
+    if (fields.priority !== undefined && ["low","medium","high","critical"].includes(fields.priority)) changes.sev = fields.priority;
+    if (fields.assignee !== undefined) {
+      const aid = (fields.assignee || "").trim();
+      changes.assignee = aid || null;
+      if (aid) { try { const u = await client.users.fetch(aid); changes.assigneeName = u.username; } catch {} }
+    }
+    const updated = db.applyWebSync(tag, changes);
+    if (!updated) return;
+    await refreshBugTicket(msg.guild, updated, i18n.resolveLang(null, msg.guildId));
+    logger.info(`[web-sync] ${tag} updated from web (${Object.keys(changes).join(", ") || "no-op"})`);
+  } catch (e) {
+    logger.warn("web-sync failed:", e.message);
   }
 });
 
