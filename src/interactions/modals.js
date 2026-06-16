@@ -85,6 +85,35 @@ async function createBugFromData(client, ix, data) {
   });
   db.setRef(bug.id, postCh.id, msg.id);
 
+  // ── Public bug-feed mirror ──────────────────────────────────────────────
+  // Post a parser-friendly copy of every new bug to a fixed public feed channel so the
+  // crew bot / website can ingest it. The footer marker (CYBERZ_BUG|tag|reporterId|username)
+  // lets the crew bot identify and parse this embed reliably. No-op if env var is unset.
+  try {
+    const feedId = process.env.BUG_FEED_CHANNEL_ID;
+    if (feedId) {
+      const feedCh = await client.channels.fetch(feedId).catch(() => null);
+      if (feedCh && typeof feedCh.send === "function") {
+        const SEV_COLOR = { critical: 0xff0000, high: 0xff8c00, medium: 0xffd700, low: 0x00cc00 };
+        const feedEmbed = new EB()
+          .setColor(SEV_COLOR[data.severity] || 0x5865f2)
+          .setTitle(String(data.title || bug.tag).slice(0, 256))
+          .setDescription(String(data.desc || "\u2014").slice(0, 2000))
+          .addFields(
+            { name: "Severity", value: String(data.severity || "medium"), inline: true },
+            { name: "Platform", value: String(data.platform || "\u2014"), inline: true },
+            { name: "Reporter", value: `<@${ix.user.id}>`, inline: true },
+          )
+          .setFooter({ text: `CYBERZ_BUG|${bug.tag}|${ix.user.id}|${ix.user.username}` })
+          .setTimestamp();
+        if (data.steps) feedEmbed.addFields({ name: "Steps", value: String(data.steps).slice(0, 1024), inline: false });
+        await feedCh.send({ embeds: [feedEmbed] });
+      }
+    }
+  } catch (e) {
+    await audit(ix.guild, `\u26a0\ufe0f ${bug.tag}: bug-feed mirror failed \u2014 ${e.message}`).catch(() => {});
+  }
+
   // Summary in admin-panel (only when we have a separate dedicated channel to link to).
   if (adminCh && bugCh && adminCh.id !== bugCh.id) {
     try {
