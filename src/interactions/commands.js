@@ -132,7 +132,7 @@ async function handleCommand(ix, client) {
   if (c === "beta-admin")     { await ix.channel.send({ embeds: [E.betaAP(db.betaSt())], components: E.betaABP() }); return ix.reply({ content: t("common.done"), ephemeral: true }); }
   if (c === "verify-panel") {
     const cfg = db.getCfg(ix.guildId);
-    const sent = await ix.channel.send({ embeds: [E.verifyP(lang, cfg?.verifyRules)], components: E.verifyB(lang) });
+    const sent = await ix.channel.send({ embeds: [E.verifyP(cfg?.verifyRules)], components: E.verifyB() });
     db.setCfg(ix.guildId, { verifyMsgId: sent.id, verifyPanelCh: ix.channel.id });
     return ix.reply({ content: t("common.done"), ephemeral: true });
   }

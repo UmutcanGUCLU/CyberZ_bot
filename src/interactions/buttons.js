@@ -18,6 +18,7 @@ const { sendTicketTranscript } = require("../transcript");
 const { isDevOrMod } = require("../permissions");
 const crisisMode = require("../crisisMode");
 const panels = require("../panels");
+const logger = require("../logger");
 
 async function dmBugStatus(client, uid, guildId, key, params) {
   if (!uid) return;
@@ -354,12 +355,29 @@ async function handleButton(ix, client) {
       return;
     }
 
-    const r = ix.guild.roles.cache.find(x => x.name === "Verified")
-      || await ix.guild.roles.create({ name: "Verified", color: 0x2ecc71 });
-    try { await ix.member.roles.add(r); } catch {}
+    // Acknowledge immediately — creating/assigning the role can be slow or fail.
+    // Without an early ack the interaction can time out → Discord shows
+    // "This interaction failed" to the user.
+    await ix.deferReply({ ephemeral: true });
+
+    // Get or create the Verified role, then assign it. Both steps need the bot to
+    // have "Manage Roles" AND to sit above the Verified role in the hierarchy.
+    // If either fails, tell the user instead of faking success.
+    let role = ix.guild.roles.cache.find(x => x.name === "Verified");
+    try {
+      if (!role) role = await ix.guild.roles.create({ name: "Verified", color: 0x2ecc71 });
+      await ix.member.roles.add(role);
+    } catch (e) {
+      logger.warn(`Verification role assignment failed for ${ix.user.id}: ${e.message}`);
+      await audit(ix.guild, i18n.t("verify.audit_role_error", i18n.resolveLang(null, ix.guildId), {
+        name: ix.user.displayName || ix.user.username,
+      })).catch(() => {});
+      return ix.editReply({ content: t("verify.role_error") });
+    }
+
     db.updMem(ix.user.id, { verified: true });
     achievements.trigger(client, ix.user.id, ix.guildId).catch(() => {});
-    return ix.reply({ content: t("verify.verified"), ephemeral: true });
+    return ix.editReply({ content: t("verify.verified") });
   }
 
   // ===== Reaction roles (platform) =====

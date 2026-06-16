@@ -289,6 +289,8 @@
     "verified": "✅ Doğrulandı! Hoş geldin.",
     "account_too_young": "❌ Doğrulama başarısız: Discord hesabın çok yeni (**{age} günlük**). Bu sunucu minimum **{required} günlük** hesap yaşı gerektiriyor. Daha sonra tekrar dene.",
     "audit_young_account": "🚨 Doğrulama reddedildi: {name} hesabı sadece {age} günlük (min: {required})",
+    "role_error": "❌ Doğrulama başarısız: **Verified** rolünü atayamadım. Bir yetkilinin, botun **Rolleri Yönet** iznine sahip olduğunu ve bot rolünün hiyerarşide **Verified rolünün üstünde** olduğunu kontrol etmesi gerekiyor.",
+    "audit_role_error": "⚠️ {name} için doğrulama rolü atanamadı — botun Rolleri Yönet izni ve rol hiyerarşisini kontrol edin.",
     "rules_modal_title": "Doğrulama Kurallarını Düzenle",
     "rules_modal_label": "Yeni kural metni",
     "rules_saved": "✅ Kurallar kaydedildi. Var olan panel otomatik güncellendi."

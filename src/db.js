@@ -424,7 +424,9 @@ const db = {
   setCfg(gid, data) {
     const d = ld();
     const i = d.configs.findIndex(c => c.gid === gid);
-    if (i >= 0) d.configs[i] = { gid, ...data };
+    // Merge with existing config so single-key updates don't wipe the rest
+    // (e.g. /verify-panel must not erase verifyRules/welCh).
+    if (i >= 0) d.configs[i] = { ...d.configs[i], ...data, gid };
     else d.configs.push({ gid, ...data });
     sv();
   },

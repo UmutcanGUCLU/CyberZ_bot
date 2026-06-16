@@ -309,7 +309,7 @@ async function handleModal(ix, client) {
         if (ch) {
           const msg = await ch.messages.fetch(cfg.verifyMsgId);
           const embedsMod = require("../embedsFor")(lang);
-          await msg.edit({ embeds: [embedsMod.verifyP(lang, newRules)], components: embedsMod.verifyB(lang) });
+          await msg.edit({ embeds: [embedsMod.verifyP(newRules)], components: embedsMod.verifyB() });
         }
       } catch {}
     }

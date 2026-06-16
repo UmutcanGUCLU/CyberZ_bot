@@ -289,6 +289,8 @@
     "verified": "✅ Verified! Welcome.",
     "account_too_young": "❌ Verification failed: your Discord account is too new (**{age} days old**). This server requires a minimum account age of **{required} days**. Try again later.",
     "audit_young_account": "🚨 Verification blocked: {name}'s account is only {age} days old (min: {required})",
+    "role_error": "❌ Verification failed: I couldn't assign the **Verified** role. A staff member needs to check that the bot has the **Manage Roles** permission and that the bot's role sits **above** the Verified role in the hierarchy.",
+    "audit_role_error": "⚠️ Verification role assignment failed for {name} — check the bot's Manage Roles permission and role hierarchy.",
     "rules_modal_title": "Edit Verification Rules",
     "rules_modal_label": "New rules text",
     "rules_saved": "✅ Rules saved. The existing panel was updated automatically."
