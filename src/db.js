@@ -192,6 +192,16 @@ const db = {
   },
   getBug(id) { return ld().bugs.find(b => b.id === id) || null; },
   getBugByTag(tag) { return ld().bugs.find(b => b.tag === tag) || null; },
+  deleteBug(id) {
+    const d = ld();
+    const i = d.bugs.findIndex(b => b.id === id);
+    if (i < 0) return false;
+    d.bugs.splice(i, 1);
+    d.comments = d.comments.filter(c => c.bid !== id);
+    d.history = d.history.filter(h => h.bid !== id);
+    sv();
+    return true;
+  },
   // Apply a change set pushed from the website (crew.db) onto a public bug, then
   // the caller refreshes the Discord ticket embed. Only touches provided fields.
   applyWebSync(tag, ch) {

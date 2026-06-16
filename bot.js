@@ -286,6 +286,18 @@ client.on(EV.MessageCreate, async (msg) => {
       if (eq > 0) fields[part.slice(0, eq)] = part.slice(eq + 1);
     }
     if (!db.getBugByTag(tag)) return;
+    // Website deleted the bug → remove the CyberZ public ticket channel too.
+    if (fields.action === "delete") {
+      const bug = db.getBugByTag(tag);
+      try {
+        const ch = bug?.chId ? await msg.guild.channels.fetch(bug.chId).catch(() => null) : null;
+        const parent = ch?.parentId ? await msg.guild.channels.fetch(ch.parentId).catch(() => null) : null;
+        if (ch && parent?.name === "Bug Tickets") await ch.delete("Bug deleted from website");
+      } catch {}
+      db.deleteBug(bug.id);
+      logger.info(`[web-sync] ${tag} deleted from web \u2014 ticket removed`);
+      return;
+    }
     const changes = {};
     if (fields.status !== undefined) { const m = mapWebStatus(fields.status); if (m) changes.status = m; }
     if (fields.priority !== undefined && ["low","medium","high","critical"].includes(fields.priority)) changes.sev = fields.priority;
